@@ -5,9 +5,31 @@ import {
   Sparkles, ChevronRight, ArrowLeft, ExternalLink, Download,
   Clock, MapPin
 } from 'lucide-react';
-// This library helps calculate Tithis for the "Automatic" year-on-year logic
-// Note: You must have updated package.json for this to work in production
-import panchang from 'panchang';
+
+/**
+ * INTERNAL PANCHANG LOGIC
+ * A simplified calculation to determine the Tithi (Lunar Day)
+ * without needing external npm packages.
+ */
+const getTodayTithi = () => {
+  const tithis = [
+    "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
+    "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima",
+    "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
+    "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya"
+  ];
+  
+  // Simplified calculation based on Lunar cycle (approx 29.53 days)
+  // Epoch: Jan 1, 1970 was a New Moon (Amavasya approx)
+  const epoch = new Date("1970-01-01").getTime();
+  const now = new Date().getTime();
+  const diff = (now - epoch) / (1000 * 60 * 60 * 24);
+  const lunarMonth = 29.530588853;
+  const daysIntoCycle = diff % lunarMonth;
+  const tithiIndex = Math.floor((daysIntoCycle / lunarMonth) * 30);
+  
+  return tithis[tithiIndex] || "Shukla Paksha";
+};
 
 const App = () => {
   const [lang, setLang] = useState('en');
@@ -15,13 +37,18 @@ const App = () => {
   const [selectedFestival, setSelectedFestival] = useState(null);
   const [festivals, setFestivals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [todayTithi, setTodayTithi] = useState('');
 
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1548013146-72479768bbaa?auto=format&fit=crop&q=80&w=1000";
   const LOGO_URL = "https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg";
 
+  useEffect(() => {
+    setTodayTithi(getTodayTithi());
+  }, []);
+
   /**
    * ROBUST DATE FORMATTER
-   * Specifically built for 'd/m/Y' (11/05/2026) or 'YYYYMMDD'
+   * Handles: d/m/Y (11/05/2026), YYYYMMDD, and ISO formats
    */
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === "Upcoming") return lang === 'en' ? 'Upcoming' : 'आगामी';
@@ -30,22 +57,11 @@ const App = () => {
       let dateObj;
       const cleanStr = String(dateStr).trim();
       
-      // Handle "d/m/Y" (11/05/2026)
       if (cleanStr.includes('/')) {
         const parts = cleanStr.split('/');
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10);
-          const year = parseInt(parts[2], 10);
-          dateObj = new Date(year, month - 1, day);
-        }
-      } 
-      // Handle "YYYYMMDD"
-      else if (cleanStr.length === 8 && !isNaN(cleanStr)) {
-        const year = cleanStr.substring(0, 4);
-        const month = cleanStr.substring(4, 6);
-        const day = cleanStr.substring(6, 8);
-        dateObj = new Date(year, month - 1, day);
+        dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      } else if (cleanStr.length === 8 && !isNaN(cleanStr)) {
+        dateObj = new Date(cleanStr.substring(0, 4), cleanStr.substring(4, 6) - 1, cleanStr.substring(6, 8));
       } else {
         dateObj = new Date(cleanStr);
       }
@@ -69,17 +85,13 @@ const App = () => {
         const formattedFestivals = wpData.map(post => {
           const acf = post.acf || {};
           
-          // DEBUG: This helps you see exactly what the API is sending in your browser's Inspect > Console
-          console.log(`Checking ACF for ${post.title.rendered}:`, acf);
+          // Debugging
+          console.log(`ACF for ${post.title.rendered}:`, acf);
 
-          // AGGRESSIVE DATE SEARCH: 
-          // If the specific key is missing, we look for anything with "date" in it
-          const findDate = (preferredKey, fallbackWords) => {
-            if (acf[preferredKey]) return acf[preferredKey];
-            const foundKey = Object.keys(acf).find(k => 
-              fallbackWords.every(word => k.toLowerCase().includes(word))
-            );
-            return foundKey ? acf[foundKey] : null;
+          const findDate = (preferred, fallbacks) => {
+            if (acf[preferred]) return acf[preferred];
+            const key = Object.keys(acf).find(k => fallbacks.some(f => k.toLowerCase().includes(f)));
+            return key ? acf[key] : "Upcoming";
           };
 
           return {
@@ -104,9 +116,8 @@ const App = () => {
               en: acf.foods_en || '',
               hi: acf.foods_hi || ''
             },
-            // Trying multiple common variations of the field names
-            northDate: findDate('north_indian_date', ['north', 'date']) || "Upcoming",
-            southDate: findDate('south_indian_date', ['south', 'date']) || "Upcoming",
+            northDate: findDate('north_indian_date', ['north', 'date']),
+            southDate: findDate('south_indian_date', ['south', 'date']),
             image: acf.magazine_image_link || 
                    post._embedded?.['wp:featuredmedia']?.[0]?.source_url || 
                    FALLBACK_IMAGE,
@@ -117,7 +128,7 @@ const App = () => {
         setFestivals(formattedFestivals);
         setIsLoading(false);
       } catch (error) {
-        console.error("API Fetch Error:", error);
+        console.error("Fetch Error:", error);
         setIsLoading(false);
       }
     };
@@ -129,11 +140,11 @@ const App = () => {
 
   const handleImageError = (e) => {
     e.target.src = LOGO_URL;
-    e.target.className = "w-full h-full object-contain p-12 bg-gray-50 opacity-40";
+    e.target.className = "w-full h-full object-contain p-12 bg-gray-50 opacity-30";
   };
 
   const AdSensePlaceholder = ({ className = "" }) => (
-    <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-sm rounded-[2.5rem] flex flex-col items-center justify-center p-6 text-gray-400 group hover:shadow-md transition-all ${className}`}>
+    <div className={`relative overflow-hidden bg-white border border-gray-100 shadow-sm rounded-[2.5rem] flex flex-col items-center justify-center p-6 text-gray-300 group hover:shadow-md transition-all ${className}`}>
       <div className="absolute top-5 right-6 text-[0.6rem] font-bold uppercase tracking-[0.3em] text-gray-200">Ad</div>
       <Sparkles className="w-6 h-6 mb-3 opacity-40 text-[#F5A623]" />
       <span className="text-[10px] font-black uppercase tracking-widest text-center text-gray-400">Sponsored Space</span>
@@ -144,7 +155,6 @@ const App = () => {
     <div className="bg-white rounded-[2.5rem] border border-[#F5A623]/20 shadow-sm overflow-hidden group hover:border-[#F5A623]/40 transition-colors">
       <div className="h-44 overflow-hidden relative">
         <img src={image} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
-        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/5 transition-all"></div>
         <div className="absolute top-5 left-5 bg-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">
           {category}
         </div>
@@ -163,7 +173,7 @@ const App = () => {
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#F5A623]/10 px-4 md:px-8 h-20 flex items-center justify-between shadow-sm">
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setCurrentView('home')}>
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white shadow-inner">
              <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
           </div>
           <span className="font-serif text-2xl font-bold text-[#2D2422] hidden sm:block tracking-tight">
@@ -171,6 +181,12 @@ const App = () => {
           </span>
         </div>
       </div>
+
+      <div className="hidden lg:flex items-center px-5 py-2.5 bg-[#FFFCF8] border border-[#F5A623]/20 rounded-full text-[10px] font-bold text-[#2D2422]/70 uppercase tracking-widest">
+        <Moon className="w-3.5 h-3.5 mr-2.5 text-[#F5A623]" />
+        Today: {todayTithi}
+      </div>
+
       <div className="flex items-center space-x-4">
         <button onClick={toggleLang} className="flex items-center space-x-2 px-4 py-2 rounded-full border border-[#F5A623]/20 hover:bg-[#FFFCF8] text-[#2D2422] font-bold text-xs uppercase transition-all shadow-sm">
           <Globe className="w-4 h-4 text-[#DF4832]" />
@@ -197,7 +213,7 @@ const App = () => {
           <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-10">
             {festivals.map(festival => (
               <div key={festival.id} onClick={() => { setSelectedFestival(festival); setCurrentView('festival'); window.scrollTo(0, 0); }} className="bg-white rounded-[3.5rem] p-5 shadow-sm border border-[#F5A623]/5 hover:shadow-2xl hover:-translate-y-2 transition-all duration-700 cursor-pointer group flex flex-col">
-                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50">
+                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
                   <img src={festival.image} alt={festival.name[lang]} onError={handleImageError} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
                   <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-[0.3em] shadow-sm">{festival.type}</div>
                 </div>
@@ -251,7 +267,7 @@ const App = () => {
                 </div>
               </div>
 
-              {/* DUAL AUTOMATIC DATES SECTION */}
+              {/* DUAL DATES SECTION */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#F5A623] transition-colors">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30 group-hover:opacity-100 transition-opacity" />
@@ -306,7 +322,7 @@ const App = () => {
                 <PromoWidget 
                   category={lang === 'en' ? "Masterclass" : "मास्टरक्लास"}
                   title={lang === 'en' ? "The Ramayana Course" : "रामायण कोर्स"}
-                  description={lang === 'en' ? "Animated wisdom for your whole family." : "आपके पूरे परिवार के लिए एनिमेटेड ज्ञान।"}
+                  description={lang === 'en' ? "Ancient wisdom brought to life through beautiful animations for your family." : "आपके परिवार के लिए सुंदर एनिमेशन के माध्यम से प्राचीन ज्ञान को जीवंत किया गया।"}
                   image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
                   buttonText={lang === 'en' ? "Join Journey" : "यात्रा में शामिल हों"}
                 />
