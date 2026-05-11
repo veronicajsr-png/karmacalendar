@@ -5,7 +5,7 @@ import {
   Sparkles, ChevronRight, ArrowLeft, ExternalLink, Download,
   Clock, MapPin
 } from 'lucide-react';
-// Importing the library we just added to package.json
+// This library helps calculate Tithis for the "Automatic" year-on-year logic
 import panchang from 'panchang';
 
 const App = () => {
@@ -19,35 +19,49 @@ const App = () => {
   const LOGO_URL = "https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg";
 
   /**
-   * DATE FORMATTER & AUTOMATION
-   * Converts YYYYMMDD to human readable strings and 
-   * provides a hook for the 'panchang' library logic.
+   * UPDATED DATE FORMATTER
+   * Specifically handles "d/m/Y" (e.g. 11/05/2026) from WordPress ACF
    */
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === "Upcoming") return lang === 'en' ? 'Upcoming' : 'आगामी';
+    
     try {
-      // If we have a standard YYYYMMDD string from WordPress
-      if (dateStr.length === 8 && !isNaN(dateStr)) {
+      let dateObj;
+      
+      // Logic for d/m/Y format (Day/Month/Year)
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10); // Month is 0-indexed in JS Date
+          const year = parseInt(parts[2], 10);
+          dateObj = new Date(year, month - 1, day);
+        }
+      } 
+      // Fallback for YYYYMMDD (Internal ACF default)
+      else if (dateStr.length === 8 && !isNaN(dateStr)) {
         const year = dateStr.substring(0, 4);
         const month = dateStr.substring(4, 6);
         const day = dateStr.substring(6, 8);
-        const dateObj = new Date(year, month - 1, day);
-        
-        return dateObj.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
-          day: 'numeric', month: 'long', year: 'numeric'
-        });
+        dateObj = new Date(year, month - 1, day);
+      } else {
+        dateObj = new Date(dateStr);
       }
-      return dateStr;
+
+      // If date is invalid, just return the raw string
+      if (!dateObj || isNaN(dateObj.getTime())) return dateStr;
+
+      return dateObj.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
     } catch (e) {
       return dateStr;
     }
   };
 
-  // The Bridge connecting to your WordPress API
   useEffect(() => {
     const fetchWordPressData = async () => {
       try {
-        // Fetching with _embed to get featured media if used
         const response = await fetch('https://pathofkarma.com/wp-json/wp/v2/festival?_embed&per_page=100');
         const wpData = await response.json();
 
@@ -55,7 +69,6 @@ const App = () => {
           id: post.id,
           name: {
             en: post.title.rendered,
-            // Switches to title_hi ACF field if user toggles language
             hi: post.acf?.title_hi || post.title.rendered
           },
           story: {
@@ -74,7 +87,7 @@ const App = () => {
             en: post.acf?.foods_en || '',
             hi: post.acf?.foods_hi || ''
           },
-          // Captured Dates from your ACF boxes
+          // CAPTURING DUAL DATES
           northDate: post.acf?.north_indian_date || "Upcoming",
           southDate: post.acf?.south_indian_date || "Upcoming",
           image: post.acf?.magazine_image_link || 
@@ -86,7 +99,7 @@ const App = () => {
         setFestivals(formattedFestivals);
         setIsLoading(false);
       } catch (error) {
-        console.error("Error fetching from Path of Karma:", error);
+        console.error("API Error:", error);
         setIsLoading(false);
       }
     };
@@ -96,33 +109,32 @@ const App = () => {
 
   const toggleLang = () => setLang(lang === 'en' ? 'hi' : 'en');
 
-  // Fallback for broken image links
   const handleImageError = (e) => {
     e.target.src = LOGO_URL;
     e.target.className = "w-full h-full object-contain p-12 bg-gray-50 opacity-40";
   };
 
   const AdSensePlaceholder = ({ className = "" }) => (
-    <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-sm rounded-[2rem] flex flex-col items-center justify-center p-6 text-gray-300 group hover:shadow-md transition-all ${className}`}>
-      <div className="absolute top-4 right-5 text-[0.6rem] font-bold uppercase tracking-[0.2em] text-gray-200">Ad</div>
-      <Sparkles className="w-5 h-5 mb-2 opacity-50 text-[#F5A623]" />
-      <span className="text-[10px] font-bold uppercase tracking-widest text-center text-gray-400">Sponsored Space</span>
+    <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-sm rounded-[2.5rem] flex flex-col items-center justify-center p-6 text-gray-300 group hover:shadow-md transition-all ${className}`}>
+      <div className="absolute top-5 right-6 text-[0.6rem] font-bold uppercase tracking-[0.3em] text-gray-200">Ad</div>
+      <Sparkles className="w-6 h-6 mb-3 opacity-40 text-[#F5A623]" />
+      <span className="text-[10px] font-black uppercase tracking-widest text-center text-gray-400">Sponsored Space</span>
     </div>
   );
 
   const PromoWidget = ({ category, title, description, image, buttonText }) => (
     <div className="bg-white rounded-[2.5rem] border border-[#F5A623]/20 shadow-sm overflow-hidden group hover:border-[#F5A623]/40 transition-colors">
       <div className="h-44 overflow-hidden relative">
-        <img src={image} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+        <img src={image} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/5 transition-all"></div>
-        <div className="absolute top-4 left-4 bg-white/90 px-3 py-1 rounded-full text-[10px] font-bold text-[#DF4832] uppercase tracking-wider shadow-sm">
+        <div className="absolute top-5 left-5 bg-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">
           {category}
         </div>
       </div>
-      <div className="p-6">
+      <div className="p-7">
         <h4 className="font-serif text-xl text-[#2D2422] mb-2">{title}</h4>
         <p className="text-xs text-[#2D2422]/60 mb-5 leading-relaxed line-clamp-2">{description}</p>
-        <button className="w-full py-3.5 rounded-2xl bg-[#FFFCF8] border border-[#F5A623]/30 text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">
+        <button className="w-full py-4 rounded-2xl bg-[#FFFCF8] border border-[#F5A623]/30 text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">
           {buttonText}
         </button>
       </div>
@@ -134,17 +146,17 @@ const App = () => {
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setCurrentView('home')}>
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white">
-             <img src={LOGO_URL} alt="Path of Karma Logo" className="w-full h-full object-cover" />
+             <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
           </div>
           <span className="font-serif text-2xl font-bold text-[#2D2422] hidden sm:block tracking-tight">
             Path of <span className="text-[#DF4832]">Karma</span>
           </span>
         </div>
       </div>
-      <div className="flex items-center space-x-3 md:space-x-4">
+      <div className="flex items-center space-x-4">
         <button 
           onClick={toggleLang} 
-          className="flex items-center space-x-2 px-4 py-2 rounded-full border border-[#F5A623]/20 hover:bg-[#FFFCF8] text-[#2D2422] font-bold text-xs uppercase transition-all"
+          className="flex items-center space-x-2 px-4 py-2 rounded-full border border-[#F5A623]/20 hover:bg-[#FFFCF8] text-[#2D2422] font-bold text-xs uppercase transition-all shadow-sm"
         >
           <Globe className="w-4 h-4 text-[#DF4832]" />
           <span>{lang === 'en' ? 'हिन्दी' : 'English'}</span>
@@ -161,8 +173,8 @@ const App = () => {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-80 text-[#F5A623]">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#DF4832] mb-4"></div>
-          <p className="font-serif text-sm text-[#2D2422] opacity-40 tracking-[0.2em] uppercase font-bold">
-            {lang === 'en' ? 'Loading Dharma Calendar...' : 'धर्म कैलेंडर लोड हो रहा है...'}
+          <p className="font-serif text-sm text-[#2D2422] opacity-40 tracking-[0.2em] uppercase font-bold text-center">
+            {lang === 'en' ? 'Synchronizing with Stars...' : 'सितारों के साथ तालमेल बिठा रहे हैं...'}
           </p>
         </div>
       ) : (
@@ -172,16 +184,16 @@ const App = () => {
               <div 
                 key={festival.id} 
                 onClick={() => { setSelectedFestival(festival); setCurrentView('festival'); window.scrollTo(0, 0); }} 
-                className="bg-white rounded-[3rem] p-5 shadow-sm border border-[#F5A623]/5 hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500 cursor-pointer group flex flex-col"
+                className="bg-white rounded-[3.5rem] p-5 shadow-sm border border-[#F5A623]/5 hover:shadow-2xl hover:-translate-y-2 transition-all duration-700 cursor-pointer group flex flex-col"
               >
-                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 border border-gray-50">
+                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50">
                   <img 
                     src={festival.image} 
                     alt={festival.name[lang]} 
                     onError={handleImageError} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" 
                   />
-                  <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-[0.2em] shadow-sm">
+                  <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-[0.3em] shadow-sm">
                     {festival.type}
                   </div>
                 </div>
@@ -198,22 +210,23 @@ const App = () => {
                     dangerouslySetInnerHTML={{__html: festival.significance[lang]}} 
                   />
                   <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-[0.2em] hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">
-                    {lang === 'en' ? 'Open Story' : 'कहानी खोलें'}
+                    {lang === 'en' ? 'Enter Story' : 'कहानी में प्रवेश करें'}
                   </button>
                 </div>
               </div>
             ))}
           </div>
           
-          <aside className="lg:col-span-3 space-y-10">
+          <aside className="lg:col-span-3 space-y-12">
+            <AdSensePlaceholder className="h-64" />
             <PromoWidget 
-              category={lang === 'en' ? "Kids Corner" : "किड्स कॉर्नर"}
+              category={lang === 'en' ? "Kids Learning" : "बच्चों की शिक्षा"}
               title={lang === 'en' ? "Dharma Puzzles" : "धर्म पहेलियाँ"}
-              description={lang === 'en' ? "Fun, educational jigsaw puzzles featuring Hindu deities." : "हिंदू देवताओं वाली मजेदार, शैक्षिक पहेलियाँ।"}
+              description={lang === 'en' ? "Engaging jigsaw puzzles teaching Vedic history to the next generation." : "अगली पीढ़ी को वैदिक इतिहास सिखाने वाली आकर्षक पहेलियाँ।"}
               image="https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600"
-              buttonText={lang === 'en' ? "Play Now" : "अभी खेलें"}
+              buttonText={lang === 'en' ? "Begin Now" : "अभी शुरू करें"}
             />
-            <AdSensePlaceholder className="h-[400px]" />
+            <AdSensePlaceholder className="h-96" />
           </aside>
         </div>
       )}
@@ -227,80 +240,82 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4 py-10">
           <button 
             onClick={() => setCurrentView('home')} 
-            className="flex items-center text-[#2D2422]/40 hover:text-[#DF4832] mb-10 bg-white px-7 py-3 rounded-full shadow-sm font-bold text-[10px] uppercase tracking-widest transition-all"
+            className="flex items-center text-[#2D2422]/40 hover:text-[#DF4832] mb-12 bg-white px-8 py-3.5 rounded-full shadow-sm font-bold text-[10px] uppercase tracking-widest transition-all"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> {lang === 'en' ? 'Back to Calendar' : 'कैलेंडर पर वापस'}
           </button>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <article className="lg:col-span-8 space-y-16">
-              {/* Header Image Section */}
-              <div className="relative rounded-[4rem] overflow-hidden shadow-2xl h-[450px] md:h-[600px] border-[6px] border-white">
+              {/* Header Image */}
+              <div className="relative rounded-[4.5rem] overflow-hidden shadow-2xl h-[450px] md:h-[650px] border-[8px] border-white">
                 <img 
                   src={selectedFestival.image} 
                   alt={selectedFestival.name[lang]} 
                   onError={handleImageError} 
                   className="w-full h-full object-cover" 
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422]/90 via-[#2D2422]/20 to-transparent"></div>
-                <div className="absolute bottom-0 left-0 p-10 md:p-16">
-                  <span className="inline-block bg-[#DF4832] text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-[0.2em] mb-6 shadow-xl">
+                <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422] via-[#2D2422]/10 to-transparent"></div>
+                <div className="absolute bottom-0 left-0 p-10 md:p-20">
+                  <span className="inline-block bg-[#DF4832] text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-[0.3em] mb-8 shadow-2xl">
                     {selectedFestival.type}
                   </span>
-                  <h1 className="font-serif text-5xl md:text-8xl text-white font-bold tracking-tighter leading-[0.9]">
+                  <h1 className="font-serif text-6xl md:text-8xl text-white font-bold tracking-tighter leading-[0.85]">
                     {selectedFestival.name[lang]}
                   </h1>
                 </div>
               </div>
 
-              {/* AUTOMATED DUAL DATE CONTAINER */}
+              {/* DUAL AUTOMATIC DATES SECTION */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-10 rounded-[3rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#F5A623] transition-colors">
-                  <Sun className="w-8 h-8 text-[#F5A623] mb-5 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#2D2422]/40 mb-3">
-                    {lang === 'en' ? 'North Indian Calendar' : 'उत्तर भारतीय कैलेंडर'}
+                <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#F5A623] transition-colors">
+                  <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30 group-hover:opacity-100 transition-opacity" />
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-[#2D2422]/30 mb-3">
+                    {lang === 'en' ? 'North Indian Date' : 'उत्तर भारतीय तिथि'}
                   </h3>
                   <p className="font-serif text-3xl text-[#2D2422]">{formatDate(selectedFestival.northDate)}</p>
                 </div>
-                <div className="bg-white p-10 rounded-[3rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#DF4832] transition-colors">
-                  <Moon className="w-8 h-8 text-[#DF4832] mb-5 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#2D2422]/40 mb-3">
-                    {lang === 'en' ? 'South Indian Calendar' : 'दक्षिण भारतीय कैलेंडर'}
+                <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#DF4832] transition-colors">
+                  <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30 group-hover:opacity-100 transition-opacity" />
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-[#2D2422]/30 mb-3">
+                    {lang === 'en' ? 'South Indian Date' : 'दक्षिण भारतीय तिथि'}
                   </h3>
                   <p className="font-serif text-3xl text-[#2D2422]">{formatDate(selectedFestival.southDate)}</p>
                 </div>
               </section>
 
-              {/* CONTENT SECTIONS */}
-              <section className="bg-white p-10 md:p-16 rounded-[4rem] shadow-sm border border-gray-50">
-                <h2 className="flex items-center font-serif text-4xl text-[#2D2422] mb-10 tracking-tight">
-                  <BookOpen className="w-10 h-10 mr-5 text-[#DF4832] opacity-80" />
-                  {lang === 'en' ? 'The Divine Story' : 'दिव्य कहानी'}
+              {/* STORY */}
+              <section className="bg-white p-12 md:p-20 rounded-[4.5rem] shadow-sm border border-gray-50">
+                <h2 className="flex items-center font-serif text-4xl text-[#2D2422] mb-12 tracking-tight">
+                  <BookOpen className="w-10 h-10 mr-6 text-[#DF4832] opacity-70" />
+                  {lang === 'en' ? 'The Story' : 'कहानी'}
                 </h2>
-                <div className="text-xl leading-[1.9] text-[#2D2422]/80 font-light prose-p:mb-8" dangerouslySetInnerHTML={{__html: selectedFestival.story[lang]}}></div>
+                <div className="text-xl leading-[2] text-[#2D2422]/80 font-light prose-p:mb-10" dangerouslySetInnerHTML={{__html: selectedFestival.story[lang]}}></div>
               </section>
 
-              <section className="bg-gradient-to-br from-white to-[#FFFCF8] p-10 md:p-16 rounded-[4rem] border border-[#F5A623]/10">
-                <h2 className="flex items-center font-serif text-4xl text-[#2D2422] mb-10 tracking-tight">
-                  <Sparkles className="w-10 h-10 mr-5 text-[#F5A623] opacity-80" />
+              {/* SIGNIFICANCE */}
+              <section className="bg-gradient-to-br from-white to-[#FFFCF8] p-12 md:p-20 rounded-[4.5rem] border border-[#F5A623]/10">
+                <h2 className="flex items-center font-serif text-4xl text-[#2D2422] mb-12 tracking-tight">
+                  <Sparkles className="w-10 h-10 mr-6 text-[#F5A623] opacity-70" />
                   {lang === 'en' ? 'Significance' : 'महत्व'}
                 </h2>
-                <div className="text-xl leading-[1.9] text-[#2D2422]/70 font-light" dangerouslySetInnerHTML={{__html: selectedFestival.significance[lang]}}></div>
+                <div className="text-xl leading-[2] text-[#2D2422]/70 font-light" dangerouslySetInnerHTML={{__html: selectedFestival.significance[lang]}}></div>
               </section>
 
+              {/* RITUALS & FOOD GRID */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <section className="bg-white p-12 rounded-[3.5rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-2 h-full bg-[#F5A623]/20"></div>
+                <section className="bg-white p-14 rounded-[4rem] border border-gray-100 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-2.5 h-full bg-[#F5A623]/20"></div>
                   <h2 className="font-serif text-3xl text-[#2D2422] mb-8 flex items-center italic">
-                    <MapPin className="w-6 h-6 mr-4 text-[#F5A623]" />
+                    <MapPin className="w-7 h-7 mr-5 text-[#F5A623]" />
                     {lang === 'en' ? 'Rituals' : 'अनुष्ठान'}
                   </h2>
                   <div className="text-lg text-[#2D2422]/70 leading-relaxed font-light" dangerouslySetInnerHTML={{__html: selectedFestival.rituals[lang]}}></div>
                 </section>
-                <section className="bg-white p-12 rounded-[3.5rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-2 h-full bg-[#DF4832]/20"></div>
+                <section className="bg-white p-14 rounded-[4rem] border border-gray-100 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-2.5 h-full bg-[#DF4832]/20"></div>
                   <h2 className="font-serif text-3xl text-[#2D2422] mb-8 flex items-center italic">
-                    <Coffee className="w-6 h-6 mr-4 text-[#DF4832]" />
+                    <Coffee className="w-7 h-7 mr-5 text-[#DF4832]" />
                     {lang === 'en' ? 'Festive Foods' : 'उत्सव के खाद्य पदार्थ'}
                   </h2>
                   <div className="text-lg text-[#2D2422]/70 leading-relaxed font-light" dangerouslySetInnerHTML={{__html: selectedFestival.foods[lang]}}></div>
@@ -312,11 +327,11 @@ const App = () => {
             <aside className="lg:col-span-4 space-y-12">
               <div className="sticky top-28 space-y-12">
                 <PromoWidget 
-                  category={lang === 'en' ? "Exclusive Course" : "विशेष कोर्स"}
-                  title={lang === 'en' ? "The Ramayana Masterclass" : "रामायण मास्टरक्लास"}
-                  description={lang === 'en' ? "Journey through the epic life of Lord Rama with animated storytelling." : "एनीमेटेड कहानी के माध्यम से भगवान राम के महाकाव्य जीवन की यात्रा करें।"}
+                  category={lang === 'en' ? "Masterclass" : "मास्टरक्लास"}
+                  title={lang === 'en' ? "The Ramayana Course" : "रामायण कोर्स"}
+                  description={lang === 'en' ? "Ancient wisdom brought to life through beautiful animations for your family." : "आपके परिवार के लिए सुंदर एनिमेशन के माध्यम से प्राचीन ज्ञान को जीवंत किया गया।"}
                   image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
-                  buttonText={lang === 'en' ? "Explore More" : "अधिक जानें"}
+                  buttonText={lang === 'en' ? "Join Journey" : "यात्रा में शामिल हों"}
                 />
                 <AdSensePlaceholder className="h-[600px]" />
               </div>
@@ -330,19 +345,19 @@ const App = () => {
   const Footer = () => (
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20 relative z-20">
       <div className="max-w-7xl mx-auto px-4 text-center">
-        <div className="flex flex-col items-center space-y-10">
-          <div className="w-20 h-20 rounded-full overflow-hidden mb-2 border-4 border-[#F5A623]/20 p-1 bg-white">
+        <div className="flex flex-col items-center space-y-12">
+          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#F5A623]/20 p-1.5 bg-white shadow-2xl">
             <img src={LOGO_URL} alt="Path of Karma" className="w-full h-full object-cover rounded-full" />
           </div>
-          <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 text-white px-10 py-5 rounded-full transition-all group shadow-2xl">
-            <span className="font-serif text-3xl mr-5 tracking-tight">pathofkarma.com</span>
-            <ExternalLink className="w-6 h-6 text-[#F5A623] group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+          <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 text-white px-12 py-6 rounded-full transition-all group shadow-2xl">
+            <span className="font-serif text-3xl mr-6 tracking-tight">pathofkarma.com</span>
+            <ExternalLink className="w-7 h-7 text-[#F5A623] group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
           </a>
-          <div className="space-y-5">
-            <p className="text-white/40 text-[11px] tracking-[0.5em] uppercase font-black">
+          <div className="space-y-6">
+            <p className="text-white/40 text-xs tracking-[0.6em] uppercase font-black">
               {lang === 'en' ? 'Wisdom for the Modern World' : 'आधुनिक विश्व के लिए ज्ञान'}
             </p>
-            <div className="pt-4 border-t border-white/5">
+            <div className="pt-6 border-t border-white/5">
               <p className="text-white/20 text-xs font-light">
                 © {new Date().getFullYear()} Path of Karma. All rights reserved.
               </p>
@@ -355,7 +370,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans selection:bg-[#F5A623]/30 selection:text-[#2D2422]">
-      {/* Background Mandala Watermark */}
+      {/* Background Watermark */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.015] z-0" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`}}></div>
       
       <div className="relative z-10 flex flex-col flex-grow">
@@ -374,9 +389,9 @@ const App = () => {
         .font-sans { font-family: var(--font-sans); }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         
-        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar { width: 12px; }
         ::-webkit-scrollbar-track { background: #FFFCF8; }
-        ::-webkit-scrollbar-thumb { background: #F5A623; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb { background: #F5A623; border-radius: 6px; border: 3px solid #FFFCF8; }
         ::-webkit-scrollbar-thumb:hover { background: #DF4832; }
       `}} />
     </div>
