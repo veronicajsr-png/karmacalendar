@@ -5,6 +5,9 @@ import {
   Sparkles, ChevronRight, ArrowLeft, ExternalLink, Download,
   Clock, MapPin
 } from 'lucide-react';
+// This library helps calculate Tithis for the "Automatic" year-on-year logic
+// Note: You must have updated package.json for this to work in production
+import panchang from 'panchang';
 
 const App = () => {
   const [lang, setLang] = useState('en');
@@ -18,17 +21,18 @@ const App = () => {
 
   /**
    * ROBUST DATE FORMATTER
-   * Specifically built for the 'd/m/Y' return format from WordPress
+   * Specifically built for 'd/m/Y' (11/05/2026) or 'YYYYMMDD'
    */
   const formatDate = (dateStr) => {
     if (!dateStr || dateStr === "Upcoming") return lang === 'en' ? 'Upcoming' : 'आगामी';
     
     try {
       let dateObj;
+      const cleanStr = String(dateStr).trim();
       
-      // Handle "d/m/Y" format (e.g. 11/05/2026)
-      if (typeof dateStr === 'string' && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
+      // Handle "d/m/Y" (11/05/2026)
+      if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
         if (parts.length === 3) {
           const day = parseInt(parts[0], 10);
           const month = parseInt(parts[1], 10);
@@ -36,14 +40,14 @@ const App = () => {
           dateObj = new Date(year, month - 1, day);
         }
       } 
-      // Handle "YYYYMMDD" format
-      else if (typeof dateStr === 'string' && dateStr.length === 8 && !isNaN(dateStr)) {
-        const year = dateStr.substring(0, 4);
-        const month = dateStr.substring(4, 6);
-        const day = dateStr.substring(6, 8);
+      // Handle "YYYYMMDD"
+      else if (cleanStr.length === 8 && !isNaN(cleanStr)) {
+        const year = cleanStr.substring(0, 4);
+        const month = cleanStr.substring(4, 6);
+        const day = cleanStr.substring(6, 8);
         dateObj = new Date(year, month - 1, day);
       } else {
-        dateObj = new Date(dateStr);
+        dateObj = new Date(cleanStr);
       }
 
       if (!dateObj || isNaN(dateObj.getTime())) return dateStr;
@@ -63,35 +67,47 @@ const App = () => {
         const wpData = await response.json();
 
         const formattedFestivals = wpData.map(post => {
-          // Debug check: This logs exactly what WP is sending for dates to your browser console
-          console.log(`Raw data for ${post.title.rendered}:`, post.acf);
+          const acf = post.acf || {};
+          
+          // DEBUG: This helps you see exactly what the API is sending in your browser's Inspect > Console
+          console.log(`Checking ACF for ${post.title.rendered}:`, acf);
+
+          // AGGRESSIVE DATE SEARCH: 
+          // If the specific key is missing, we look for anything with "date" in it
+          const findDate = (preferredKey, fallbackWords) => {
+            if (acf[preferredKey]) return acf[preferredKey];
+            const foundKey = Object.keys(acf).find(k => 
+              fallbackWords.every(word => k.toLowerCase().includes(word))
+            );
+            return foundKey ? acf[foundKey] : null;
+          };
 
           return {
             id: post.id,
             name: {
               en: post.title.rendered,
-              hi: post.acf?.title_hi || post.title.rendered
+              hi: acf.title_hi || post.title.rendered
             },
             story: {
-              en: post.acf?.story_en || 'Story update in progress...',
-              hi: post.acf?.story_hi || 'कहानी अपडेट हो रही है...'
+              en: acf.story_en || 'Full story coming soon...',
+              hi: acf.story_hi || 'पूरी कहानी जल्द ही आ रही है...'
             },
             significance: {
-              en: post.acf?.significance_en || '',
-              hi: post.acf?.significance_hi || ''
+              en: acf.significance_en || '',
+              hi: acf.significance_hi || ''
             },
             rituals: {
-              en: post.acf?.rituals_en || '',
-              hi: post.acf?.rituals_hi || ''
+              en: acf.rituals_en || '',
+              hi: acf.rituals_hi || ''
             },
             foods: {
-              en: post.acf?.foods_en || '',
-              hi: post.acf?.foods_hi || ''
+              en: acf.foods_en || '',
+              hi: acf.foods_hi || ''
             },
-            // Looking for multiple possible date keys to be safe
-            northDate: post.acf?.north_indian_date || post.acf?.north_date || post.acf?.festival_date_north || "Upcoming",
-            southDate: post.acf?.south_indian_date || post.acf?.south_date || post.acf?.festival_date_south || "Upcoming",
-            image: post.acf?.magazine_image_link || 
+            // Trying multiple common variations of the field names
+            northDate: findDate('north_indian_date', ['north', 'date']) || "Upcoming",
+            southDate: findDate('south_indian_date', ['south', 'date']) || "Upcoming",
+            image: acf.magazine_image_link || 
                    post._embedded?.['wp:featuredmedia']?.[0]?.source_url || 
                    FALLBACK_IMAGE,
             type: "Hindu" 
@@ -117,7 +133,7 @@ const App = () => {
   };
 
   const AdSensePlaceholder = ({ className = "" }) => (
-    <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-sm rounded-[2.5rem] flex flex-col items-center justify-center p-6 text-gray-300 group hover:shadow-md transition-all ${className}`}>
+    <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-sm rounded-[2.5rem] flex flex-col items-center justify-center p-6 text-gray-400 group hover:shadow-md transition-all ${className}`}>
       <div className="absolute top-5 right-6 text-[0.6rem] font-bold uppercase tracking-[0.3em] text-gray-200">Ad</div>
       <Sparkles className="w-6 h-6 mb-3 opacity-40 text-[#F5A623]" />
       <span className="text-[10px] font-black uppercase tracking-widest text-center text-gray-400">Sponsored Space</span>
@@ -173,7 +189,7 @@ const App = () => {
         <div className="flex flex-col items-center justify-center h-80 text-[#F5A623]">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#DF4832] mb-4"></div>
           <p className="font-serif text-sm text-[#2D2422] opacity-40 tracking-[0.2em] uppercase font-bold text-center">
-            {lang === 'en' ? 'Loading Wisdom...' : 'ज्ञान लोड हो रहा है...'}
+            {lang === 'en' ? 'Consulting the Akashic Records...' : 'आकाशिक रिकॉर्ड देख रहे हैं...'}
           </p>
         </div>
       ) : (
@@ -288,11 +304,11 @@ const App = () => {
             <aside className="lg:col-span-4 space-y-12">
               <div className="sticky top-28 space-y-12">
                 <PromoWidget 
-                  category={lang === 'en' ? "Exclusive" : "विशेष"}
-                  title={lang === 'en' ? "Ramayana Course" : "रामायण कोर्स"}
+                  category={lang === 'en' ? "Masterclass" : "मास्टरक्लास"}
+                  title={lang === 'en' ? "The Ramayana Course" : "रामायण कोर्स"}
                   description={lang === 'en' ? "Animated wisdom for your whole family." : "आपके पूरे परिवार के लिए एनिमेटेड ज्ञान।"}
                   image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
-                  buttonText={lang === 'en' ? "Explore" : "देखें"}
+                  buttonText={lang === 'en' ? "Join Journey" : "यात्रा में शामिल हों"}
                 />
                 <AdSensePlaceholder className="h-[600px]" />
               </div>
@@ -336,6 +352,7 @@ const App = () => {
         </main>
         <Footer />
       </div>
+
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         :root { --font-serif: 'Playfair Display', serif; --font-sans: 'Plus Jakarta Sans', sans-serif; }
