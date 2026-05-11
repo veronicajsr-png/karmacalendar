@@ -225,6 +225,24 @@ const App = () => {
     );
   };
 
+  const Footer = () => (
+    <footer className="bg-white border-t border-gray-50 py-12">
+      <div className="max-w-7xl mx-auto px-4 text-center">
+        <p className="text-[#2D2422]/40 text-xs tracking-widest uppercase mb-4">Official Platform of</p>
+        <div className="flex flex-col items-center space-y-4">
+          <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-[#2D2422] hover:text-[#DF4832] transition-all group">
+            <span className="font-serif text-2xl mr-3 tracking-tighter">pathofkarma.com</span>
+            <ExternalLink className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
+          </a>
+          {/* Copyright Line */}
+          <p className="text-[#2D2422]/60 text-sm font-light">
+            © {new Date().getFullYear()} Path of Karma. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans selection:bg-[#F5A623]/20 selection:text-[#DF4832]">
       <Navbar />
@@ -233,15 +251,7 @@ const App = () => {
         {currentView === 'festival' && <FestivalDetailView />}
       </main>
       
-      <footer className="bg-white border-t border-gray-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-[#2D2422]/40 text-xs tracking-widest uppercase mb-4">Official Platform of</p>
-          <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-[#2D2422] hover:text-[#DF4832] transition-all group">
-            <span className="font-serif text-2xl mr-3 tracking-tighter">pathofkarma.com</span>
-            <ExternalLink className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
-          </a>
-        </div>
-      </footer>
+      <Footer />
 
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
