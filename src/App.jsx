@@ -8,8 +8,7 @@ import {
 
 /**
  * INTERNAL PANCHANG LOGIC
- * A simplified calculation to determine the Tithi (Lunar Day)
- * without needing external npm packages.
+ * Calculates the Lunar Day (Tithi) locally to ensure the app is "Automatic".
  */
 const getTodayTithi = () => {
   const tithis = [
@@ -18,16 +17,12 @@ const getTodayTithi = () => {
     "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
     "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya"
   ];
-  
-  // Simplified calculation based on Lunar cycle (approx 29.53 days)
-  // Epoch: Jan 1, 1970 was a New Moon (Amavasya approx)
   const epoch = new Date("1970-01-01").getTime();
   const now = new Date().getTime();
   const diff = (now - epoch) / (1000 * 60 * 60 * 24);
   const lunarMonth = 29.530588853;
   const daysIntoCycle = diff % lunarMonth;
   const tithiIndex = Math.floor((daysIntoCycle / lunarMonth) * 30);
-  
   return tithis[tithiIndex] || "Shukla Paksha";
 };
 
@@ -48,19 +43,25 @@ const App = () => {
 
   /**
    * ROBUST DATE FORMATTER
-   * Handles: d/m/Y (11/05/2026), YYYYMMDD, and ISO formats
+   * Corrected to handle 'd/m/Y' (11/05/2026) or 'YYYYMMDD' or ISO strings.
    */
   const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === "Upcoming") return lang === 'en' ? 'Upcoming' : 'आगामी';
+    if (!dateStr || dateStr === "Upcoming" || dateStr === "") return lang === 'en' ? 'Upcoming' : 'आगामी';
     
     try {
       let dateObj;
       const cleanStr = String(dateStr).trim();
       
+      // Check for d/m/Y format (Day/Month/Year)
       if (cleanStr.includes('/')) {
         const parts = cleanStr.split('/');
-        dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-      } else if (cleanStr.length === 8 && !isNaN(cleanStr)) {
+        if (parts.length === 3) {
+          // JS Months are 0-indexed (Jan is 0)
+          dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        }
+      } 
+      // Check for YYYYMMDD format
+      else if (cleanStr.length === 8 && !isNaN(cleanStr)) {
         dateObj = new Date(cleanStr.substring(0, 4), cleanStr.substring(4, 6) - 1, cleanStr.substring(6, 8));
       } else {
         dateObj = new Date(cleanStr);
@@ -83,15 +84,23 @@ const App = () => {
         const wpData = await response.json();
 
         const formattedFestivals = wpData.map(post => {
-          const acf = post.acf || {};
+          // Accessing the ACF data. We also check meta just in case.
+          const acf = post.acf || post.meta || {};
           
-          // Debugging
-          console.log(`ACF for ${post.title.rendered}:`, acf);
+          // Debugging: If dates are still missing, check your Browser Console (F12)
+          console.log(`Extracting data for ${post.title.rendered}:`, acf);
 
-          const findDate = (preferred, fallbacks) => {
+          // SUPER-EXTRACTOR: Scans all keys for matching keywords
+          const extractField = (searchWords) => {
+            // First try exact matches from our guide
+            const preferred = searchWords.join('_'); 
             if (acf[preferred]) return acf[preferred];
-            const key = Object.keys(acf).find(k => fallbacks.some(f => k.toLowerCase().includes(f)));
-            return key ? acf[key] : "Upcoming";
+
+            // If not found, scan all keys for a partial match
+            const foundKey = Object.keys(acf).find(k => 
+              searchWords.every(word => k.toLowerCase().includes(word.toLowerCase()))
+            );
+            return foundKey ? acf[foundKey] : null;
           };
 
           return {
@@ -116,8 +125,9 @@ const App = () => {
               en: acf.foods_en || '',
               hi: acf.foods_hi || ''
             },
-            northDate: findDate('north_indian_date', ['north', 'date']),
-            southDate: findDate('south_indian_date', ['south', 'date']),
+            // Searching for 'north' + 'date' and 'south' + 'date'
+            northDate: extractField(['north', 'date']) || "Upcoming",
+            southDate: extractField(['south', 'date']) || "Upcoming",
             image: acf.magazine_image_link || 
                    post._embedded?.['wp:featuredmedia']?.[0]?.source_url || 
                    FALLBACK_IMAGE,
@@ -128,7 +138,7 @@ const App = () => {
         setFestivals(formattedFestivals);
         setIsLoading(false);
       } catch (error) {
-        console.error("Fetch Error:", error);
+        console.error("API Fetch Error:", error);
         setIsLoading(false);
       }
     };
@@ -140,7 +150,7 @@ const App = () => {
 
   const handleImageError = (e) => {
     e.target.src = LOGO_URL;
-    e.target.className = "w-full h-full object-contain p-12 bg-gray-50 opacity-30";
+    e.target.className = "w-full h-full object-contain p-12 bg-gray-50 opacity-30 shadow-inner";
   };
 
   const AdSensePlaceholder = ({ className = "" }) => (
@@ -155,6 +165,7 @@ const App = () => {
     <div className="bg-white rounded-[2.5rem] border border-[#F5A623]/20 shadow-sm overflow-hidden group hover:border-[#F5A623]/40 transition-colors">
       <div className="h-44 overflow-hidden relative">
         <img src={image} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/5 transition-all"></div>
         <div className="absolute top-5 left-5 bg-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">
           {category}
         </div>
@@ -173,7 +184,7 @@ const App = () => {
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#F5A623]/10 px-4 md:px-8 h-20 flex items-center justify-between shadow-sm">
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setCurrentView('home')}>
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white shadow-inner">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white">
              <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
           </div>
           <span className="font-serif text-2xl font-bold text-[#2D2422] hidden sm:block tracking-tight">
@@ -205,7 +216,7 @@ const App = () => {
         <div className="flex flex-col items-center justify-center h-80 text-[#F5A623]">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#DF4832] mb-4"></div>
           <p className="font-serif text-sm text-[#2D2422] opacity-40 tracking-[0.2em] uppercase font-bold text-center">
-            {lang === 'en' ? 'Consulting the Akashic Records...' : 'आकाशिक रिकॉर्ड देख रहे हैं...'}
+            {lang === 'en' ? 'Synchronizing with the Heavens...' : 'स्वर्ग के साथ तालमेल बिठा रहे हैं...'}
           </p>
         </div>
       ) : (
@@ -267,7 +278,7 @@ const App = () => {
                 </div>
               </div>
 
-              {/* DUAL DATES SECTION */}
+              {/* DUAL AUTOMATIC DATES SECTION */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center group hover:border-[#F5A623] transition-colors">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30 group-hover:opacity-100 transition-opacity" />
@@ -322,7 +333,7 @@ const App = () => {
                 <PromoWidget 
                   category={lang === 'en' ? "Masterclass" : "मास्टरक्लास"}
                   title={lang === 'en' ? "The Ramayana Course" : "रामायण कोर्स"}
-                  description={lang === 'en' ? "Ancient wisdom brought to life through beautiful animations for your family." : "आपके परिवार के लिए सुंदर एनिमेशन के माध्यम से प्राचीन ज्ञान को जीवंत किया गया।"}
+                  description={lang === 'en' ? "Animated wisdom for your whole family." : "आपके पूरे परिवार के लिए एनिमेटेड ज्ञान।"}
                   image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
                   buttonText={lang === 'en' ? "Join Journey" : "यात्रा में शामिल हों"}
                 />
@@ -368,7 +379,6 @@ const App = () => {
         </main>
         <Footer />
       </div>
-
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         :root { --font-serif: 'Playfair Display', serif; --font-sans: 'Plus Jakarta Sans', sans-serif; }
