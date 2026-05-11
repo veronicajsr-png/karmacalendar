@@ -10,25 +10,24 @@ const App = () => {
   const [currentView, setCurrentView] = useState('home');
   const [selectedFestival, setSelectedFestival] = useState(null);
   
-  // State to hold your live WordPress data
   const [festivals, setFestivals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // The Bridge connecting to your WordPress API
   useEffect(() => {
     const fetchWordPressData = async () => {
       try {
-        // Fetching up to 100 festivals from your live site
         const response = await fetch('https://pathofkarma.com/wp-json/wp/v2/festival?per_page=100');
         const wpData = await response.json();
 
-        // Translating WordPress data into the format our React app understands
         const formattedFestivals = wpData.map(post => ({
           id: post.id,
           name: {
+            // This is the logic you asked about:
+            // 'en' uses the main WordPress title
             en: post.title.rendered,
-            // Uses ACF title_hi if available, otherwise falls back to the main title
-            hi: post.acf?.title_hi || post.title.rendered
+            // 'hi' uses your new ACF field 'title_hi'. 
+            // If it's empty, it falls back to the English title so the app doesn't look broken.
+            hi: post.acf?.title_hi || post.title.rendered 
           },
           story: {
             en: post.acf?.story_en || 'Story coming soon...',
@@ -64,7 +63,6 @@ const App = () => {
 
   const toggleLang = () => setLang(lang === 'en' ? 'hi' : 'en');
 
-  // AdSense Placeholder Component
   const AdSensePlaceholder = ({ className = "" }) => (
     <div className={`relative overflow-hidden bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] rounded-3xl flex flex-col items-center justify-center p-6 text-gray-400 group transition-all hover:shadow-[0_4px_20px_rgb(0,0,0,0.06)] ${className}`}>
       <div className="absolute top-3 right-4 text-[0.65rem] font-bold uppercase tracking-widest text-gray-300">Sponsored</div>
@@ -73,7 +71,6 @@ const App = () => {
     </div>
   );
 
-  // Widget for Courses, Puzzles, and Books
   const PromoWidget = ({ category, title, description, image, buttonText }) => (
     <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 shadow-[0_10px_30px_rgb(0,0,0,0.03)] overflow-hidden group hover:border-[#F5A623]/40 transition-colors">
       <div className="h-48 overflow-hidden relative p-2">
@@ -104,7 +101,6 @@ const App = () => {
           className="flex items-center space-x-3 cursor-pointer group"
           onClick={() => setCurrentView('home')}
         >
-          {/* LOGO UPDATE: Using your high-res 512x512 logo */}
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white">
              <img 
                src="https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg" 
@@ -177,6 +173,7 @@ const App = () => {
                 </div>
               </div>
               <div className="px-4 pb-4 flex flex-col flex-grow">
+                {/* The title here will now automatically switch to Hindi if title_hi exists */}
                 <h3 className="font-serif text-2xl text-[#2D2422] mb-2 group-hover:text-[#DF4832] transition-colors">
                   {festival.name[lang]}
                 </h3>
@@ -216,6 +213,7 @@ const App = () => {
                 <img src={selectedFestival.image} alt={selectedFestival.name[lang]} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422] via-[#2D2422]/20 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
+                  {/* Detailed page title also switches automatically */}
                   <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-4 tracking-tight">
                     {selectedFestival.name[lang]}
                   </h1>
@@ -280,7 +278,7 @@ const App = () => {
         <h2 className="font-serif text-3xl text-[#2D2422] mb-4">{lang === 'en' ? 'Your Profile' : 'आपकी प्रोफ़ाइल'}</h2>
         <p className="text-[#2D2422]/60 mb-8">{lang === 'en' ? 'Sign in to save your favorite festivals.' : 'अपने पसंदीदा त्योहारों को सहेजने के लिए साइन इन करें।'}</p>
         <button className="bg-[#DF4832] text-white px-8 py-3 rounded-full font-bold shadow-md hover:bg-[#F5A623] transition-all">
-          {lang === 'en' ? 'Log In / Sign Up' : 'लॉग इन / साइन अप'}
+          {lang === 'en' ? 'Log In / Sign Up' : 'साइन अप / लॉग इन'}
         </button>
       </div>
     </div>
