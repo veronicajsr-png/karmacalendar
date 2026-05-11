@@ -27,12 +27,12 @@ const App = () => {
           id: post.id,
           name: {
             en: post.title.rendered,
-            hi: post.title.rendered
+            // Uses ACF title_hi if available, otherwise falls back to the main title
+            hi: post.acf?.title_hi || post.title.rendered
           },
-          // Pulling directly from your ACF boxes (with fallbacks just in case)
           story: {
-            en: post.acf?.story_en || 'Story not updated yet.',
-            hi: post.acf?.story_hi || 'कहानी अभी अपडेट नहीं हुई है।'
+            en: post.acf?.story_en || 'Story coming soon...',
+            hi: post.acf?.story_hi || 'कहानी जल्द आ रही है...'
           },
           significance: {
             en: post.acf?.significance_en || '',
@@ -46,7 +46,6 @@ const App = () => {
             en: post.acf?.foods_en || '',
             hi: post.acf?.foods_hi || ''
           },
-          // Pulling your Unsplash image link
           image: post.acf?.magazine_image_link || "https://images.unsplash.com/photo-1605369661445-5d41512f45ea?auto=format&fit=crop&q=80&w=1000",
           date: post.acf?.north_indian_date || "Upcoming",
           type: "Hindu" 
@@ -105,8 +104,13 @@ const App = () => {
           className="flex items-center space-x-3 cursor-pointer group"
           onClick={() => setCurrentView('home')}
         >
-          <div className="w-10 h-10 bg-gradient-to-br from-[#DF4832] to-[#F5A623] rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all group-hover:rotate-12">
-            <Sun className="w-6 h-6 text-white" />
+          {/* LOGO UPDATE: Using your high-res 512x512 logo */}
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-sm border border-gray-100 bg-white">
+             <img 
+               src="https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg" 
+               alt="Path of Karma Logo" 
+               className="w-full h-full object-cover"
+             />
           </div>
           <span className="font-serif text-2xl font-bold text-[#2D2422] hidden sm:block tracking-tight">
             Path of <span className="text-[#DF4832]">Karma</span>
@@ -140,7 +144,6 @@ const App = () => {
 
   const HomeView = () => (
     <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
-      {/* Loading State */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center h-64 text-[#F5A623]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#DF4832] mb-4"></div>
@@ -150,8 +153,7 @@ const App = () => {
         </div>
       )}
 
-      {/* Render your live festivals */}
-      {!isLoading && festivals.length > 0 && (
+      {!isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {festivals.map(festival => (
             <div 
@@ -178,7 +180,6 @@ const App = () => {
                 <h3 className="font-serif text-2xl text-[#2D2422] mb-2 group-hover:text-[#DF4832] transition-colors">
                   {festival.name[lang]}
                 </h3>
-                {/* Dynamically stripping HTML tags if ACF sends them */}
                 <p className="text-[#2D2422]/60 text-sm font-light line-clamp-2 leading-relaxed mb-6"
                    dangerouslySetInnerHTML={{__html: festival.significance[lang]}} 
                 />
@@ -189,12 +190,6 @@ const App = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {!isLoading && festivals.length === 0 && (
-        <div className="text-center py-20">
-          <p className="text-[#2D2422]/60 font-serif text-xl">No festivals found. Please check your WordPress API.</p>
         </div>
       )}
     </div>
@@ -218,105 +213,59 @@ const App = () => {
             <article className="lg:col-span-8 space-y-12 text-lg text-[#2D2422]/80 leading-relaxed font-light">
               
               <div className="relative rounded-[3rem] overflow-hidden shadow-2xl h-[400px] md:h-[500px]">
-                <img 
-                  src={selectedFestival.image} 
-                  alt={selectedFestival.name[lang]}
-                  className="w-full h-full object-cover"
-                />
+                <img src={selectedFestival.image} alt={selectedFestival.name[lang]} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422] via-[#2D2422]/20 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
-                  <div className="flex gap-3 mb-4">
-                    <span className="bg-[#DF4832] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
-                      {selectedFestival.type}
-                    </span>
-                    <span className="bg-white/20 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center">
-                      <Calendar className="w-3 h-3 mr-1.5" /> {selectedFestival.date}
-                    </span>
-                  </div>
-                  <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-4 tracking-tight drop-shadow-md">
+                  <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-4 tracking-tight">
                     {selectedFestival.name[lang]}
                   </h1>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 border-b border-[#F5A623]/20 pb-8">
-                <button className="flex-1 sm:flex-none flex items-center justify-center bg-[#DF4832] text-white px-8 py-4 rounded-full hover:bg-[#F5A623] hover:shadow-lg transition-all font-semibold shadow-md">
-                  <Heart className="w-5 h-5 mr-2" />
-                  {lang === 'en' ? 'Save Festival' : 'त्योहार सहेजें'}
-                </button>
-                <button className="flex-1 sm:flex-none flex items-center justify-center bg-white border-2 border-[#F5A623]/20 text-[#2D2422] px-8 py-4 rounded-full hover:border-[#F5A623] hover:text-[#DF4832] transition-all font-semibold shadow-sm">
-                  <Bell className="w-5 h-5 mr-2" />
-                  {lang === 'en' ? 'Notify Me' : 'मुझे सूचित करें'}
-                </button>
-                <button className="p-4 rounded-full bg-white border-2 border-gray-100 text-gray-500 hover:text-[#DF4832] hover:border-[#DF4832]/30 transition-all shadow-sm">
-                  <Share2 className="w-5 h-5" />
-                </button>
-              </div>
-
               <section>
-                <h2 className="flex items-center font-serif text-3xl text-[#2D2422] mb-6 tracking-tight">
+                <h2 className="flex items-center font-serif text-3xl text-[#2D2422] mb-6">
                   <BookOpen className="w-6 h-6 mr-3 text-[#DF4832]" />
                   {lang === 'en' ? 'The Story' : 'कहानी'}
                 </h2>
-                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-sm border border-gray-100 text-lg leading-loose" dangerouslySetInnerHTML={{__html: selectedFestival.story[lang]}}>
-                </div>
+                <div className="bg-white p-8 md:p-10 rounded-[2rem] shadow-sm border border-gray-100" dangerouslySetInnerHTML={{__html: selectedFestival.story[lang]}}></div>
               </section>
 
               <section>
-                <h2 className="flex items-center font-serif text-3xl text-[#2D2422] mb-6 tracking-tight">
+                <h2 className="flex items-center font-serif text-3xl text-[#2D2422] mb-6">
                   <Sparkles className="w-6 h-6 mr-3 text-[#F5A623]" />
                   {lang === 'en' ? 'Spiritual Significance' : 'आध्यात्मिक महत्व'}
                 </h2>
-                <div className="bg-gradient-to-br from-[#FFF5E6] to-white p-8 md:p-10 rounded-[2rem] border border-[#F5A623]/20 text-lg leading-loose" dangerouslySetInnerHTML={{__html: selectedFestival.significance[lang]}}>
-                </div>
+                <div className="bg-gradient-to-br from-[#FFF5E6] to-white p-8 md:p-10 rounded-[2rem] border border-[#F5A623]/20" dangerouslySetInnerHTML={{__html: selectedFestival.significance[lang]}}></div>
               </section>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-                <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 hover:border-[#F5A623]/30 transition-colors">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
                   <h2 className="font-serif text-2xl text-[#2D2422] mb-4 flex items-center">
                     <Moon className="w-5 h-5 mr-3 text-[#F5A623]" />
-                    {lang === 'en' ? 'Observances & Fasting' : 'अनुष्ठान और उपवास'}
+                    {lang === 'en' ? 'Observances' : 'अनुष्ठान'}
                   </h2>
-                  <div className="text-base" dangerouslySetInnerHTML={{__html: selectedFestival.rituals[lang]}}></div>
+                  <div dangerouslySetInnerHTML={{__html: selectedFestival.rituals[lang]}}></div>
                 </section>
 
-                <section className="bg-[#FFFCF8] p-8 rounded-[2rem] border border-gray-100 relative overflow-hidden group hover:border-[#DF4832]/20 transition-colors">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-[#DF4832]/5 rounded-full -mr-20 -mt-20 blur-3xl transition-all group-hover:bg-[#DF4832]/10"></div>
-                  <h2 className="font-serif text-2xl text-[#2D2422] mb-4 relative z-10 flex items-center">
+                <section className="bg-[#FFFCF8] p-8 rounded-[2rem] border border-gray-100">
+                  <h2 className="font-serif text-2xl text-[#2D2422] mb-4 flex items-center">
                     <Coffee className="w-5 h-5 mr-3 text-[#DF4832]" />
                     {lang === 'en' ? 'Festive Foods' : 'उत्सव के खाद्य पदार्थ'}
                   </h2>
-                  <div className="relative z-10 text-base" dangerouslySetInnerHTML={{__html: selectedFestival.foods[lang]}}></div>
+                  <div dangerouslySetInnerHTML={{__html: selectedFestival.foods[lang]}}></div>
                 </section>
               </div>
             </article>
 
-            {/* Sticky Sidebar Column */}
-            <aside className="lg:col-span-4 space-y-8 relative">
-              <div className="sticky top-28 space-y-8">
-                
-                {/* Educational Course Widget */}
-                <PromoWidget 
-                  category={lang === 'en' ? "Online Course" : "ऑनलाइन कोर्स"}
-                  title={lang === 'en' ? "The Ramayana Masterclass" : "रामायण मास्टरक्लास"}
-                  description={lang === 'en' ? "An interactive, animated video course teaching kids the epic tale of Lord Rama." : "बच्चों को भगवान राम की महाकाव्य कहानी सिखाने वाला एक इंटरैक्टिव, एनिमेटेड वीडियो कोर्स।"}
-                  image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
-                  buttonText={lang === 'en' ? "Start Learning" : "सीखना शुरू करें"}
-                />
-
-                {/* Puzzle/Game Widget */}
-                <PromoWidget 
-                  category={lang === 'en' ? "Kids Corner" : "किड्स कॉर्नर"}
-                  title={lang === 'en' ? "Dharma Puzzles" : "धर्म पहेलियाँ"}
-                  description={lang === 'en' ? "Fun, educational jigsaw puzzles featuring Hindu deities and ancient Vedic stories." : "हिंदू देवताओं और प्राचीन वैदिक कहानियों की विशेषता वाली मजेदार, शैक्षिक पहेलियाँ।"}
-                  image="https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600"
-                  buttonText={lang === 'en' ? "Play Now" : "अभी खेलें"}
-                />
-
-                {/* Vertical AdSense space for sidebar */}
-                <AdSensePlaceholder className="w-full h-96" />
-                
-              </div>
+            <aside className="lg:col-span-4 space-y-8">
+              <PromoWidget 
+                category={lang === 'en' ? "Online Course" : "ऑनलाइन कोर्स"}
+                title={lang === 'en' ? "The Ramayana Masterclass" : "रामायण मास्टरक्लास"}
+                description={lang === 'en' ? "An interactive course teaching kids the epic tale of Lord Rama." : "बच्चों को भगवान राम की कहानी सिखाने वाला एक इंटरैक्टिव कोर्स।"}
+                image="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600"
+                buttonText={lang === 'en' ? "Start Learning" : "सीखना शुरू करें"}
+              />
+              <AdSensePlaceholder className="w-full h-96" />
             </aside>
           </div>
         </div>
@@ -325,64 +274,14 @@ const App = () => {
   };
 
   const ProfileView = () => (
-    <div className="max-w-3xl mx-auto px-4 py-12 relative z-10">
-      <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-[0_20px_50px_rgb(0,0,0,0.05)] border border-[#F5A623]/10 text-center relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#DF4832]/5 to-[#F5A623]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        
-        <div className="w-24 h-24 bg-gradient-to-br from-[#DF4832] to-[#F5A623] rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl relative z-10">
-          <User className="w-10 h-10 text-white" />
-        </div>
-        <h2 className="font-serif text-3xl text-[#2D2422] mb-3 relative z-10">
-          {lang === 'en' ? 'Join Path of Karma' : 'कर्म के पथ से जुड़ें'}
-        </h2>
-        <p className="text-[#2D2422]/60 mb-8 font-light max-w-md mx-auto relative z-10">
-          {lang === 'en' 
-            ? 'Create a unified account to save your favorite festivals, get email reminders, and access our courses and books.'
-            : 'अपने पसंदीदा त्योहारों को सहेजने, ईमेल अनुस्मारक प्राप्त करने और हमारे पाठ्यक्रमों और पुस्तकों तक पहुंचने के लिए एक एकीकृत खाता बनाएं।'}
-        </p>
-        
-        <form className="space-y-4 max-w-sm mx-auto relative z-10" onSubmit={(e) => e.preventDefault()}>
-          <input 
-            type="email" 
-            placeholder={lang === 'en' ? 'Email Address' : 'ईमेल पता'}
-            className="w-full px-5 py-4 bg-[#FFFCF8] border border-gray-200 rounded-2xl focus:outline-none focus:border-[#F5A623] focus:ring-1 focus:ring-[#F5A623] transition-all"
-          />
-          <button className="w-full bg-[#DF4832] text-white py-4 rounded-2xl font-bold hover:bg-[#F5A623] hover:shadow-lg transition-all shadow-md">
-            {lang === 'en' ? 'Sign Up / Log In' : 'साइन अप / लॉग इन'}
-          </button>
-        </form>
-      </div>
-
-      <div className="mt-12">
-        <h3 className="font-serif text-2xl text-[#2D2422] mb-6 px-4">
-          {lang === 'en' ? 'Saved Festivals' : 'सहेजे गए त्योहार'}
-        </h3>
-        {festivals.length > 0 && (
-          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-            {/* Show just the first item from the live DB as a placeholder for "saved" festivals */}
-            <ul className="divide-y divide-gray-50">
-              <li className="p-6 hover:bg-[#FFFCF8] transition-colors flex items-center justify-between group cursor-pointer" onClick={() => { setSelectedFestival(festivals[0]); setCurrentView('festival'); }}>
-                <div className="flex items-center">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden mr-4">
-                    <img src={festivals[0].image} alt={festivals[0].name[lang]} className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[#2D2422] group-hover:text-[#DF4832] transition-colors">{festivals[0].name[lang]}</h4>
-                    <p className="text-sm text-[#2D2422]/60">{festivals[0].date}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                   <button 
-                     className="flex items-center text-xs bg-white border border-gray-200 text-[#2D2422] px-4 py-2 rounded-xl hover:border-[#F5A623] hover:text-[#DF4832] transition-colors font-bold shadow-sm"
-                   >
-                     <Download className="w-4 h-4 mr-1.5" />
-                     {lang === 'en' ? 'Export' : 'निर्यात'}
-                   </button>
-                </div>
-              </li>
-            </ul>
-          </div>
-        )}
+    <div className="max-w-3xl mx-auto px-4 py-12 relative z-10 text-center">
+      <div className="bg-white rounded-[3rem] p-12 shadow-sm border border-[#F5A623]/10">
+        <User className="w-16 h-16 text-[#DF4832] mx-auto mb-6" />
+        <h2 className="font-serif text-3xl text-[#2D2422] mb-4">{lang === 'en' ? 'Your Profile' : 'आपकी प्रोफ़ाइल'}</h2>
+        <p className="text-[#2D2422]/60 mb-8">{lang === 'en' ? 'Sign in to save your favorite festivals.' : 'अपने पसंदीदा त्योहारों को सहेजने के लिए साइन इन करें।'}</p>
+        <button className="bg-[#DF4832] text-white px-8 py-3 rounded-full font-bold shadow-md hover:bg-[#F5A623] transition-all">
+          {lang === 'en' ? 'Log In / Sign Up' : 'लॉग इन / साइन अप'}
+        </button>
       </div>
     </div>
   );
@@ -390,63 +289,30 @@ const App = () => {
   const Footer = () => (
     <footer className="bg-[#2D2422] py-12 mt-auto border-t border-[#F5A623]/20 relative z-20">
       <div className="max-w-7xl mx-auto px-4 text-center">
-        <p className="text-white/50 text-sm mb-6 font-light">
-          {lang === 'en' ? 'Discover more spiritual insights and wisdom at' : 'अधिक आध्यात्मिक अंतर्दृष्टि और ज्ञान की खोज करें'}
-        </p>
-        <a 
-          href="https://pathofkarma.com" 
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-4 rounded-full transition-all group shadow-[0_4px_20px_rgb(0,0,0,0.2)]"
-        >
-          <span className="font-serif text-xl md:text-2xl tracking-tight mr-3">pathofkarma.com</span>
-          <ExternalLink className="w-5 h-5 text-[#F5A623] group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+        <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-white/80 hover:text-[#F5A623] transition-all">
+          <span className="font-serif text-xl mr-3">pathofkarma.com</span>
+          <ExternalLink className="w-5 h-5" />
         </a>
       </div>
     </footer>
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-white font-sans selection:bg-[#F5A623]/30 selection:text-[#2D2422]">
-      {/* Background Pattern */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.015] z-0" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`}}></div>
-      
+    <div className="min-h-screen flex flex-col bg-white font-sans">
       <div className="relative z-10 flex flex-col flex-grow">
         <Navbar />
-        
         <main className="flex-grow">
           {currentView === 'home' && <HomeView />}
           {currentView === 'festival' && <FestivalDetailView />}
           {currentView === 'profile' && <ProfileView />}
         </main>
-
         <Footer />
       </div>
-
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-        
-        :root {
-          --font-serif: 'Playfair Display', serif;
-          --font-sans: 'Plus Jakarta Sans', sans-serif;
-        }
-        
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+        :root { --font-serif: 'Playfair Display', serif; --font-sans: 'Plus Jakarta Sans', sans-serif; }
         .font-serif { font-family: var(--font-serif); }
         .font-sans { font-family: var(--font-sans); }
-
-        ::-webkit-scrollbar {
-          width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-          background: #FFFCF8;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #F5A623;
-          border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #DF4832;
-        }
       `}} />
     </div>
   );
