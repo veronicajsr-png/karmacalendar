@@ -18,6 +18,53 @@ const getTodayTithi = () => {
   return tithis[tithiIndex] || "Shukla Paksha";
 };
 
+const parseDateString = (dateStr) => {
+
+  if (!dateStr || dateStr === "Upcoming") return null;
+
+  
+
+  const str = String(dateStr).trim();
+
+
+
+  // 1. Detect raw ACF database format: YYYYMMDD (8 digits)
+
+  if (/^\d{8}$/.test(str)) {
+
+    const year = parseInt(str.slice(0, 4), 10);
+
+    const month = parseInt(str.slice(4, 6), 10) - 1; // JS months are 0-11
+
+    const day = parseInt(str.slice(6, 8), 10);
+
+    return new Date(year, month, day);
+
+  }
+
+
+
+  // 2. Detect DD/MM/YYYY
+
+  const parts = str.split('/');
+
+  if (parts.length === 3) {
+
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+
+  }
+
+
+
+  // 3. Fallback for standard formats
+
+  const fallback = new Date(str);
+
+  return isNaN(fallback.getTime()) ? null : fallback;
+
+};
+
+
 const App = () => {
   const [lang, setLang] = useState('en');
   const [currentView, setCurrentView] = useState('home');
