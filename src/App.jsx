@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-
 import { 
   Calendar, User, Menu, Globe, Sun, Moon, 
   Share2, Heart, Bell, BookOpen, Coffee, 
@@ -17,7 +16,7 @@ const getTodayTithi = () => {
   return tithis[tithiIndex] || "Shukla Paksha";
 };
 
-// Safely convert ANY date string (including raw YYYYMMDD) into a Date object
+// UPGRADED: Safely convert ANY date string (including raw YYYYMMDD) into a Date object
 const parseDateString = (dateStr) => {
   if (!dateStr || dateStr === "Upcoming") return null;
   
@@ -26,7 +25,7 @@ const parseDateString = (dateStr) => {
   // 1. Detect raw ACF database format: YYYYMMDD (8 digits)
   if (/^\d{8}$/.test(str)) {
     const year = parseInt(str.slice(0, 4), 10);
-    const month = parseInt(str.slice(4, 6), 10) - 1;
+    const month = parseInt(str.slice(4, 6), 10) - 1; // JS months are 0-11
     const day = parseInt(str.slice(6, 8), 10);
     return new Date(year, month, day);
   }
@@ -41,170 +40,6 @@ const parseDateString = (dateStr) => {
   const fallback = new Date(str);
   return isNaN(fallback.getTime()) ? null : fallback;
 };
-
-// ─── NEW: Calendar URL Generators ────────────────────────────────────────────
-
-const toCalDate = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}${m}${d}`;
-};
-
-const buildGoogleCalendarUrl = (festival, lang) => {
-  if (!festival.parsedDate) return null;
-  const date = toCalDate(festival.parsedDate);
-  // End date is next day for Google's all-day event format
-  const nextDay = new Date(festival.parsedDate);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const endDate = toCalDate(nextDay);
-
-  const name = encodeURIComponent(festival.name[lang] || festival.name['en']);
-  const details = encodeURIComponent(
-    [festival.significance?.[lang] || festival.significance?.['en'] || '']
-      .join('')
-      .replace(/<[^>]*>/g, '') // strip HTML tags
-      .slice(0, 300)
-  );
-  const lunarInfo = [festival.lunarMonth, festival.paksha, festival.tithi]
-    .filter(Boolean)
-    .join(' ');
-  const description = encodeURIComponent(
-    (details ? `${decodeURIComponent(details)}\n\n` : '') +
-    (lunarInfo ? `Lunar: ${lunarInfo}` : '')
-  );
-
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${name}&dates=${date}/${endDate}&details=${description}&sf=true&output=xml`;
-};
-
-const buildICalContent = (festival, lang) => {
-  if (!festival.parsedDate) return null;
-  const date = toCalDate(festival.parsedDate);
-  const nextDay = new Date(festival.parsedDate);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const endDate = toCalDate(nextDay);
-
-  const name = (festival.name[lang] || festival.name['en']).replace(/,/g, '\\,');
-  const lunarInfo = [festival.lunarMonth, festival.paksha, festival.tithi]
-    .filter(Boolean)
-    .join(' ');
-  const rawDesc = (festival.significance?.[lang] || festival.significance?.['en'] || '')
-    .replace(/<[^>]*>/g, '')
-    .slice(0, 300)
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
-  const description = rawDesc + (lunarInfo ? `\\n\\nLunar: ${lunarInfo}` : '');
-
-  const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
-  return [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Path of Karma//Festival Calendar//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    `DTSTART;VALUE=DATE:${date}`,
-    `DTEND;VALUE=DATE:${endDate}`,
-    `SUMMARY:${name}`,
-    `DESCRIPTION:${description}`,
-    `DTSTAMP:${now}`,
-    `UID:festival-${festival.id}-${date}@pathofkarma.com`,
-    'END:VEVENT',
-    'END:VCALENDAR'
-  ].join('\r\n');
-};
-
-const downloadIcal = (festival, lang) => {
-  const content = buildICalContent(festival, lang);
-  if (!content) return;
-  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${(festival.name['en'] || 'festival').replace(/\s+/g, '-')}.ics`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-// ─── Calendar Picker Dropdown ─────────────────────────────────────────────────
-
-const AddToCalendarButton = ({ festival, lang }) => {
-  const [open, setOpen] = useState(false);
-  const googleUrl = buildGoogleCalendarUrl(festival, lang);
-
-  if (!festival.parsedDate || festival.isPast) return null;
-
-  return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center justify-center space-x-2 px-6 py-3 rounded-full bg-[#DF4832] text-white font-bold text-[11px] uppercase tracking-widest shadow-md hover:bg-[#c43d29] transition-all"
-      >
-        <Calendar className="w-4 h-4" />
-        <span>{lang === 'hi' ? 'कैलेंडर में जोड़ें' : 'Add to Calendar'}</span>
-      </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            left: 0,
-            zIndex: 100,
-            background: 'white',
-            border: '1px solid rgba(245,166,35,0.25)',
-            borderRadius: '1rem',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
-            minWidth: '200px',
-            overflow: 'hidden'
-          }}
-        >
-          {googleUrl && (
-            <a
-              href={googleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className="flex items-center space-x-3 px-5 py-4 text-sm text-[#2D2422] hover:bg-[#FFFCF8] transition-colors font-medium"
-            >
-              <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M34 6H14C9.58 6 6 9.58 6 14v20c0 4.42 3.58 8 8 8h20c4.42 0 8-3.58 8-8V14c0-4.42-3.58-8-8-8z" fill="#fff" stroke="#E0E0E0" strokeWidth="2"/>
-                <path d="M14 6h20v8H14z" fill="#DF4832"/>
-                <circle cx="17" cy="4" r="2" fill="#2D2422"/>
-                <circle cx="31" cy="4" r="2" fill="#2D2422"/>
-                <text x="24" y="34" textAnchor="middle" fontFamily="sans-serif" fontSize="14" fontWeight="bold" fill="#1a73e8">G</text>
-              </svg>
-              <span>Google Calendar</span>
-            </a>
-          )}
-          <button
-            onClick={() => { downloadIcal(festival, lang); setOpen(false); }}
-            className="flex items-center space-x-3 w-full px-5 py-4 text-sm text-[#2D2422] hover:bg-[#FFFCF8] transition-colors font-medium"
-          >
-            <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M34 6H14C9.58 6 6 9.58 6 14v20c0 4.42 3.58 8 8 8h20c4.42 0 8-3.58 8-8V14c0-4.42-3.58-8-8-8z" fill="#fff" stroke="#E0E0E0" strokeWidth="2"/>
-              <path d="M14 6h20v8H14z" fill="#0078D4"/>
-              <circle cx="17" cy="4" r="2" fill="#2D2422"/>
-              <circle cx="31" cy="4" r="2" fill="#2D2422"/>
-              <text x="24" y="34" textAnchor="middle" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#0078D4">iCal</text>
-            </svg>
-            <span>Outlook / Apple Calendar</span>
-          </button>
-        </div>
-      )}
-      {open && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-          onClick={() => setOpen(false)}
-        />
-      )}
-    </div>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 const App = () => {
   const [lang, setLang] = useState('en');
@@ -237,7 +72,7 @@ const App = () => {
       const wpData = await response.json();
 
       const today = new Date();
-      today.setHours(0,0,0,0);
+      today.setHours(0,0,0,0); // Normalize today to midnight
 
       const formatted = wpData.map(post => {
         const acf = post.acf || {};
@@ -251,6 +86,8 @@ const App = () => {
 
         const northD = acf.north_indian_date || acf.festival_date_north || '';
         const parsedDate = parseDateString(northD);
+        
+        // Check if the festival has already passed
         const isPast = parsedDate ? parsedDate < today : false;
 
         return {
@@ -272,10 +109,11 @@ const App = () => {
         };
       });
 
+      // SORTING LOGIC: Upcoming festivals first (by date), Past festivals at the end.
       formatted.sort((a, b) => {
-        if (a.isPast && !b.isPast) return 1;
-        if (!a.isPast && b.isPast) return -1;
-        if (a.parsedDate && b.parsedDate) return a.parsedDate - b.parsedDate;
+        if (a.isPast && !b.isPast) return 1;  // Push 'a' down if it's passed
+        if (!a.isPast && b.isPast) return -1; // Push 'b' down if it's passed
+        if (a.parsedDate && b.parsedDate) return a.parsedDate - b.parsedDate; // Sort chronologically
         return 0;
       });
 
@@ -305,6 +143,7 @@ const App = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // UPGRADED: Smart Date Formatter with Beautiful Localization
   const formatDate = (f) => {
     const ruleParts = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '');
     const lunarString = ruleParts.length > 0 ? ruleParts.join(' ') : (lang === 'en' ? 'Upcoming' : 'आगामी');
@@ -314,6 +153,7 @@ const App = () => {
     }
 
     if (f.parsedDate) {
+      // Formats into e.g., "10 August 2026" (English) or "10 अगस्त 2026" (Hindi)
       return f.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
         day: 'numeric',
         month: 'long',
@@ -437,6 +277,7 @@ const App = () => {
     if (!selectedFestival) return null;
     const f = selectedFestival;
     
+    // Formatting the specific internal card date
     const detailDateDisplay = f.isPast 
       ? "2027 Date TBD" 
       : (f.parsedDate 
@@ -467,10 +308,6 @@ const App = () => {
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Gregorian Date</h3>
                   <p className="font-serif text-3xl text-[#2D2422]">{detailDateDisplay}</p>
-                  {/* ─── ADD TO CALENDAR BUTTON ─── */}
-                  <div className="mt-6">
-                    <AddToCalendarButton festival={f} lang={lang} />
-                  </div>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
@@ -499,7 +336,7 @@ const App = () => {
     );
   };
 
-  const Footer = () => (
+const Footer = () => (
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
       <div className="max-w-7xl mx-auto px-4 text-center">
         <div className="flex flex-col items-center space-y-12">
@@ -507,6 +344,7 @@ const App = () => {
           <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
              pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
           </a>
+          {/* RESTORED COPYRIGHT INFO */}
           <div className="space-y-4">
             <p className="text-white/40 text-[11px] tracking-[0.5em] uppercase font-black">Wisdom for the Modern World</p>
             <p className="text-white/20 text-xs font-light">© {new Date().getFullYear()} Path of Karma. All rights reserved.</p>
@@ -515,7 +353,6 @@ const App = () => {
       </div>
     </footer>
   );
-
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans selection:bg-[#F5A623]/30 selection:text-[#2D2422]">
       <Navbar />
