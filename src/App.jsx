@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, User, Menu, Globe, Sun, Moon, 
   Share2, Heart, Bell, BookOpen, Coffee, 
-  Sparkles, ChevronRight, ArrowLeft, ExternalLink, Download,
+  Sparkles, ChevronRight, ChevronLeft, ArrowLeft, ExternalLink, Download,
   Clock, MapPin, Search, Filter, Hash
 } from 'lucide-react';
 
@@ -28,6 +28,10 @@ const App = () => {
   const [activeTab, setActiveCategory] = useState('All');
   const [todayTithi, setTodayTithi] = useState('');
 
+  // PAGINATION STATE
+  const [currentPage, setCurrentPage] = useState(1);
+  const festivalsPerPage = 12; // Show 12 festivals per page (perfect for 2 or 3 column grids)
+
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1548013146-72479768bbaa?auto=format&fit=crop&q=80&w=1000";
   const LOGO_URL = "https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg";
 
@@ -36,35 +40,10 @@ const App = () => {
     fetchWordPressData();
   }, []);
 
-  const formatDateString = (dateStr) => {
-    if (!dateStr || dateStr === "Upcoming" || dateStr === "") return "";
-    
-    try {
-      // HANDLE d/m/Y (e.g. 11/05/2026)
-      if (typeof dateStr === 'string' && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-          const year = parseInt(parts[2], 10);
-          const d = new Date(year, month, day);
-          return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
-            day: 'numeric', month: 'long', year: 'numeric'
-          });
-        }
-      }
-      // HANDLE YYYYMMDD
-      if (typeof dateStr === 'string' && dateStr.length === 8 && !isNaN(dateStr)) {
-        const d = new Date(dateStr.substring(0,4), dateStr.substring(4,6)-1, dateStr.substring(6,8));
-        return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
-          day: 'numeric', month: 'long', year: 'numeric'
-        });
-      }
-      return dateStr;
-    } catch (e) {
-      return dateStr;
-    }
-  };
+  // Reset to page 1 whenever user searches or changes filter tabs
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTab]);
 
   const fetchWordPressData = async () => {
     try {
@@ -115,9 +94,20 @@ const App = () => {
     });
   }, [festivals, searchQuery, activeTab, lang]);
 
-  const getDisplayDate = (f) => {
-    const gregNorth = formatDateString(f.northDate);
-    if (gregNorth) return gregNorth;
+  // PAGINATION LOGIC
+  const indexOfLastFestival = currentPage * festivalsPerPage;
+  const indexOfFirstFestival = indexOfLastFestival - festivalsPerPage;
+  const currentFestivals = filteredFestivals.slice(indexOfFirstFestival, indexOfLastFestival);
+  const totalPages = Math.ceil(filteredFestivals.length / festivalsPerPage);
+
+  const paginate = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Smooth scroll back to top of the grid
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const formatDate = (f) => {
+    if (f.northDate && f.northDate !== "Upcoming" && f.northDate !== "") return f.northDate;
     const ruleParts = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '');
     if (ruleParts.length > 0) return ruleParts.join(' ');
     return lang === 'en' ? 'Upcoming' : 'आगामी';
@@ -139,7 +129,7 @@ const App = () => {
         <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-4 py-2 rounded-full border border-[#F5A623]/20 text-xs font-bold text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
           {lang === 'en' ? 'हिन्दी' : 'English'}
         </button>
-        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8]"><Calendar className="w-5 h-5" /></button>
+        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-all"><Calendar className="w-5 h-5" /></button>
       </div>
     </nav>
   );
@@ -174,27 +164,74 @@ const App = () => {
         <div className="flex flex-col items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#DF4832] mb-4"></div></div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-10">
-            {filteredFestivals.map(f => (
-              <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className="bg-white rounded-[3rem] p-5 shadow-sm border border-gray-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col">
-                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
-                  <img src={f.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={f.name[lang]} />
-                  <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
+          
+          {/* Main Grid Content */}
+          <div className="lg:col-span-9 flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
+              {currentFestivals.length > 0 ? currentFestivals.map(f => (
+                <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className="bg-white rounded-[3rem] p-5 shadow-sm border border-gray-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col">
+                  <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
+                    <img src={f.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={f.name[lang]} />
+                    <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
+                  </div>
+                  <div className="px-3 flex-grow flex flex-col">
+                    <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{formatDate(f)}</div>
+                    <h3 className="font-serif text-2xl text-[#2D2422] mb-3 group-hover:text-[#DF4832] transition-colors leading-tight">{f.name[lang]}</h3>
+                    <div className="text-[#2D2422]/60 text-sm line-clamp-2 mb-8 font-light" dangerouslySetInnerHTML={{__html: f.significance[lang]}} />
+                    <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">Explore Details</button>
+                  </div>
                 </div>
-                <div className="px-3 flex-grow flex flex-col">
-                  <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{getDisplayDate(f)}</div>
-                  <h3 className="font-serif text-2xl text-[#2D2422] mb-3 group-hover:text-[#DF4832] transition-colors leading-tight">{f.name[lang]}</h3>
-                  <div className="text-[#2D2422]/60 text-sm line-clamp-2 mb-8 font-light" dangerouslySetInnerHTML={{__html: f.significance[lang]}} />
-                  <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">Explore Details</button>
+              )) : (
+                <div className="col-span-1 md:col-span-2 text-center py-20 text-gray-400">
+                   No festivals found matching your search.
                 </div>
+              )}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center space-x-2 mt-auto">
+                <button 
+                  onClick={() => paginate(currentPage - 1)} 
+                  disabled={currentPage === 1}
+                  className={`p-3 rounded-full border transition-all ${currentPage === 1 ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                
+                <div className="flex space-x-2">
+                  {[...Array(totalPages)].map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => paginate(index + 1)}
+                      className={`w-12 h-12 rounded-full text-sm font-bold transition-all ${currentPage === index + 1 ? 'bg-[#DF4832] text-white shadow-lg' : 'bg-white border border-gray-100 text-[#2D2422]/60 hover:border-[#F5A623]/40'}`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={() => paginate(currentPage + 1)} 
+                  disabled={currentPage === totalPages}
+                  className={`p-3 rounded-full border transition-all ${currentPage === totalPages ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
-            ))}
+            )}
           </div>
+
           <aside className="lg:col-span-3 space-y-10">
              <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 p-6 overflow-hidden shadow-sm">
                <img src="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600" className="h-40 w-full object-cover rounded-2xl mb-4" alt="Course" />
                <h4 className="font-serif text-lg text-[#2D2422] mb-2">Ramayana Course</h4>
+               <p className="text-xs text-[#2D2422]/60 mb-4">Animated storytelling for families.</p>
                <button className="w-full py-3 rounded-xl bg-[#FFFCF8] border border-[#F5A623]/30 text-[#DF4832] font-bold text-[10px] uppercase tracking-widest">Join Now</button>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-4">
+              <Sparkles className="w-6 h-6 text-[#F5A623] opacity-40" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">AdSense Space</span>
             </div>
           </aside>
         </div>
@@ -205,10 +242,6 @@ const App = () => {
   const FestivalDetailView = () => {
     if (!selectedFestival) return null;
     const f = selectedFestival;
-    const gregNorth = formatDateString(f.northDate);
-    const gregSouth = formatDateString(f.southDate);
-    const ruleStr = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '').join(' ');
-
     return (
       <div className="min-h-screen bg-[#FFFCF8] pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-10">
@@ -231,12 +264,12 @@ const App = () => {
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Gregorian Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{gregNorth || "TBD"}</p>
+                  <p className="font-serif text-3xl text-[#2D2422]">{f.northDate !== "" ? f.northDate : "TBD"}</p>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Lunar Rule</h3>
-                  <p className="font-serif text-2xl text-[#2D2422]">{ruleStr || "Calculating..."}</p>
+                  <p className="font-serif text-2xl text-[#2D2422]">{f.lunarMonth ? `${f.lunarMonth} ${f.paksha} ${f.tithi}` : "Calculating..."}</p>
                 </div>
               </section>
 
@@ -277,7 +310,7 @@ const App = () => {
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
       <div className="max-w-7xl mx-auto px-4 text-center">
         <div className="flex flex-col items-center space-y-12">
-          <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white shadow-2xl" alt="Footer Logo" />
+          <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white" alt="Footer Logo" />
           <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
              pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
           </a>
