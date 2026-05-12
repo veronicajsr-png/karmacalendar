@@ -336,7 +336,7 @@ const App = () => {
     );
   };
 
-  const Footer = () => (
+const Footer = () => (
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
       <div className="max-w-7xl mx-auto px-4 text-center">
         <div className="flex flex-col items-center space-y-12">
@@ -344,11 +344,15 @@ const App = () => {
           <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
              pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
           </a>
+          {/* RESTORED COPYRIGHT INFO */}
+          <div className="space-y-4">
+            <p className="text-white/40 text-[11px] tracking-[0.5em] uppercase font-black">Wisdom for the Modern World</p>
+            <p className="text-white/20 text-xs font-light">© {new Date().getFullYear()} Path of Karma. All rights reserved.</p>
+          </div>
         </div>
       </div>
     </footer>
   );
-
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans selection:bg-[#F5A623]/30 selection:text-[#2D2422]">
       <Navbar />
