@@ -9,13 +9,22 @@ import {
 const getTodayTithi = () => {
   const tithis = [
     "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
-    "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima",
-    "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
-    "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya"
+    "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima"
   ];
   const diff = (new Date().getTime() - new Date("1970-01-01").getTime()) / (1000 * 60 * 60 * 24);
   const tithiIndex = Math.floor((diff % 29.530588853 / 29.530588853) * 30);
   return tithis[tithiIndex] || "Shukla Paksha";
+};
+
+// Helper to safely convert DD/MM/YYYY into a real JavaScript Date object
+const parseDateString = (dateStr) => {
+  if (!dateStr || dateStr === "Upcoming") return null;
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  const fallback = new Date(dateStr);
+  return isNaN(fallback.getTime()) ? null : fallback;
 };
 
 const App = () => {
@@ -28,9 +37,8 @@ const App = () => {
   const [activeTab, setActiveCategory] = useState('All');
   const [todayTithi, setTodayTithi] = useState('');
 
-  // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
-  const festivalsPerPage = 12; // Show 12 festivals per page (perfect for 2 or 3 column grids)
+  const festivalsPerPage = 12; 
 
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1548013146-72479768bbaa?auto=format&fit=crop&q=80&w=1000";
   const LOGO_URL = "https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg";
@@ -40,7 +48,6 @@ const App = () => {
     fetchWordPressData();
   }, []);
 
-  // Reset to page 1 whenever user searches or changes filter tabs
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, activeTab]);
@@ -50,9 +57,11 @@ const App = () => {
       const response = await fetch('https://pathofkarma.com/wp-json/wp/v2/festival?_embed&per_page=100');
       const wpData = await response.json();
 
+      const today = new Date();
+      today.setHours(0,0,0,0); // Normalize today to midnight
+
       const formatted = wpData.map(post => {
         const acf = post.acf || {};
-        
         const getVal = (words) => {
           const key = Object.keys(acf).find(k => words.every(w => k.toLowerCase().includes(w)));
           const raw = key ? acf[key] : null;
@@ -60,6 +69,12 @@ const App = () => {
           const val = typeof raw === 'object' ? (raw.label || raw.value || '') : raw;
           return String(val).replace(/\s*\(.*?\)\s*/g, '').trim();
         };
+
+        const northD = acf.north_indian_date || acf.festival_date_north || '';
+        const parsedDate = parseDateString(northD);
+        
+        // Check if the festival has already passed
+        const isPast = parsedDate ? parsedDate < today : false;
 
         return {
           id: post.id,
@@ -72,10 +87,20 @@ const App = () => {
           lunarMonth: getVal(['lunar', 'month']) || getVal(['month']),
           paksha: getVal(['paksha']),
           tithi: getVal(['tithi']),
-          northDate: acf.north_indian_date || acf.festival_date_north || '',
+          northDate: northD,
           southDate: acf.south_indian_date || acf.festival_date_south || '',
+          parsedDate: parsedDate,
+          isPast: isPast,
           image: acf.magazine_image_link || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || FALLBACK_IMAGE
         };
+      });
+
+      // SORTING LOGIC: Upcoming festivals first (by date), Past festivals at the end.
+      formatted.sort((a, b) => {
+        if (a.isPast && !b.isPast) return 1;  // Push 'a' down if it's passed
+        if (!a.isPast && b.isPast) return -1; // Push 'b' down if it's passed
+        if (a.parsedDate && b.parsedDate) return a.parsedDate - b.parsedDate; // Sort chronologically
+        return 0;
       });
 
       setFestivals(formatted);
@@ -94,7 +119,6 @@ const App = () => {
     });
   }, [festivals, searchQuery, activeTab, lang]);
 
-  // PAGINATION LOGIC
   const indexOfLastFestival = currentPage * festivalsPerPage;
   const indexOfFirstFestival = indexOfLastFestival - festivalsPerPage;
   const currentFestivals = filteredFestivals.slice(indexOfFirstFestival, indexOfLastFestival);
@@ -102,15 +126,24 @@ const App = () => {
 
   const paginate = (pageNumber) => {
     setCurrentPage(pageNumber);
-    // Smooth scroll back to top of the grid
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // SMART DATE FORMATTER
   const formatDate = (f) => {
-    if (f.northDate && f.northDate !== "Upcoming" && f.northDate !== "") return f.northDate;
     const ruleParts = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '');
-    if (ruleParts.length > 0) return ruleParts.join(' ');
-    return lang === 'en' ? 'Upcoming' : 'आगामी';
+    const lunarString = ruleParts.length > 0 ? ruleParts.join(' ') : (lang === 'en' ? 'Upcoming' : 'आगामी');
+
+    if (f.isPast) {
+      // If the date has passed, show the perpetual Lunar Rule and mark it for next year
+      return `${lunarString} (2027)`; 
+    }
+
+    if (f.northDate && f.northDate !== "Upcoming" && f.northDate !== "") {
+      return f.northDate;
+    }
+
+    return lunarString;
   };
 
   const Navbar = () => (
@@ -165,14 +198,14 @@ const App = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           
-          {/* Main Grid Content */}
           <div className="lg:col-span-9 flex flex-col">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
               {currentFestivals.length > 0 ? currentFestivals.map(f => (
-                <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className="bg-white rounded-[3rem] p-5 shadow-sm border border-gray-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col">
+                <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className={`bg-white rounded-[3rem] p-5 shadow-sm border ${f.isPast ? 'border-gray-100 opacity-80' : 'border-gray-50'} hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col`}>
                   <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
-                    <img src={f.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={f.name[lang]} />
+                    <img src={f.image} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ${f.isPast ? 'grayscale-[30%]' : ''}`} alt={f.name[lang]} />
                     <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
+                    {f.isPast && <div className="absolute top-5 right-5 bg-[#2D2422]/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest">Passed</div>}
                   </div>
                   <div className="px-3 flex-grow flex flex-col">
                     <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{formatDate(f)}</div>
@@ -188,36 +221,15 @@ const App = () => {
               )}
             </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center space-x-2 mt-auto">
-                <button 
-                  onClick={() => paginate(currentPage - 1)} 
-                  disabled={currentPage === 1}
-                  className={`p-3 rounded-full border transition-all ${currentPage === 1 ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                
+                <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className={`p-3 rounded-full border transition-all ${currentPage === 1 ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}><ChevronLeft className="w-5 h-5" /></button>
                 <div className="flex space-x-2">
                   {[...Array(totalPages)].map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => paginate(index + 1)}
-                      className={`w-12 h-12 rounded-full text-sm font-bold transition-all ${currentPage === index + 1 ? 'bg-[#DF4832] text-white shadow-lg' : 'bg-white border border-gray-100 text-[#2D2422]/60 hover:border-[#F5A623]/40'}`}
-                    >
-                      {index + 1}
-                    </button>
+                    <button key={index} onClick={() => paginate(index + 1)} className={`w-12 h-12 rounded-full text-sm font-bold transition-all ${currentPage === index + 1 ? 'bg-[#DF4832] text-white shadow-lg' : 'bg-white border border-gray-100 text-[#2D2422]/60 hover:border-[#F5A623]/40'}`}>{index + 1}</button>
                   ))}
                 </div>
-
-                <button 
-                  onClick={() => paginate(currentPage + 1)} 
-                  disabled={currentPage === totalPages}
-                  className={`p-3 rounded-full border transition-all ${currentPage === totalPages ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
+                <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} className={`p-3 rounded-full border transition-all ${currentPage === totalPages ? 'border-gray-100 text-gray-300' : 'border-[#F5A623]/20 text-[#2D2422] hover:bg-[#FFFCF8] hover:border-[#F5A623]'}`}><ChevronRight className="w-5 h-5" /></button>
               </div>
             )}
           </div>
@@ -256,6 +268,7 @@ const App = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422] via-[#2D2422]/10 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 p-10 md:p-20">
                   <span className="inline-block bg-[#DF4832] text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8 shadow-2xl">{f.category}</span>
+                  {f.isPast && <span className="inline-block ml-3 bg-[#2D2422]/80 text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8 shadow-2xl">Passed</span>}
                   <h1 className="font-serif text-6xl md:text-8xl text-white font-bold tracking-tighter leading-[0.85]">{f.name[lang]}</h1>
                 </div>
               </div>
@@ -264,7 +277,7 @@ const App = () => {
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Gregorian Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{f.northDate !== "" ? f.northDate : "TBD"}</p>
+                  <p className="font-serif text-3xl text-[#2D2422]">{f.isPast ? "2027 Date TBD" : (f.northDate !== "" ? f.northDate : "TBD")}</p>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
@@ -280,19 +293,6 @@ const App = () => {
                 </h2>
                 <div className="text-xl leading-[2] text-[#2D2422]/80 font-light prose-p:mb-10" dangerouslySetInnerHTML={{__html: f.story[lang]}}></div>
               </section>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <section className="bg-white p-14 rounded-[4rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-2.5 h-full bg-[#F5A623]/20"></div>
-                  <h2 className="font-serif text-3xl text-[#2D2422] mb-8 flex items-center italic"><MapPin className="w-7 h-7 mr-5 text-[#F5A623]" />Rituals</h2>
-                  <div className="text-lg text-[#2D2422]/70 font-light" dangerouslySetInnerHTML={{__html: f.rituals[lang]}}></div>
-                </section>
-                <section className="bg-white p-14 rounded-[4rem] border border-gray-100 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-2.5 h-full bg-[#DF4832]/20"></div>
-                  <h2 className="font-serif text-3xl text-[#2D2422] mb-8 flex items-center italic"><Coffee className="w-7 h-7 mr-5 text-[#DF4832]" />Festive Foods</h2>
-                  <div className="text-lg text-[#2D2422]/70 font-light" dangerouslySetInnerHTML={{__html: f.foods[lang]}}></div>
-                </section>
-              </div>
             </article>
 
             <aside className="lg:col-span-4 space-y-12">
@@ -314,10 +314,6 @@ const App = () => {
           <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
              pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
           </a>
-          <div className="space-y-4">
-            <p className="text-white/40 text-[11px] tracking-[0.5em] uppercase font-black">Wisdom for the Modern World</p>
-            <p className="text-white/20 text-xs font-light">© {new Date().getFullYear()} Path of Karma. All rights reserved.</p>
-          </div>
         </div>
       </div>
     </footer>
