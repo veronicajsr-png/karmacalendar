@@ -36,6 +36,36 @@ const App = () => {
     fetchWordPressData();
   }, []);
 
+  const formatDateString = (dateStr) => {
+    if (!dateStr || dateStr === "Upcoming" || dateStr === "") return "";
+    
+    try {
+      // HANDLE d/m/Y (e.g. 11/05/2026)
+      if (typeof dateStr === 'string' && dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+          const year = parseInt(parts[2], 10);
+          const d = new Date(year, month, day);
+          return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          });
+        }
+      }
+      // HANDLE YYYYMMDD
+      if (typeof dateStr === 'string' && dateStr.length === 8 && !isNaN(dateStr)) {
+        const d = new Date(dateStr.substring(0,4), dateStr.substring(4,6)-1, dateStr.substring(6,8));
+        return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        });
+      }
+      return dateStr;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   const fetchWordPressData = async () => {
     try {
       const response = await fetch('https://pathofkarma.com/wp-json/wp/v2/festival?_embed&per_page=100');
@@ -44,11 +74,12 @@ const App = () => {
       const formatted = wpData.map(post => {
         const acf = post.acf || {};
         
-        // HELPER: Scans ACF for any key containing these words
         const getVal = (words) => {
-          if (acf[words.join('_')]) return acf[words.join('_')];
           const key = Object.keys(acf).find(k => words.every(w => k.toLowerCase().includes(w)));
-          return key ? acf[key] : null;
+          const raw = key ? acf[key] : null;
+          if (!raw) return '';
+          const val = typeof raw === 'object' ? (raw.label || raw.value || '') : raw;
+          return String(val).replace(/\s*\(.*?\)\s*/g, '').trim();
         };
 
         return {
@@ -59,12 +90,11 @@ const App = () => {
           significance: { en: acf.significance_en || '', hi: acf.significance_hi || '' },
           rituals: { en: acf.rituals_en || '', hi: acf.rituals_hi || '' },
           foods: { en: acf.foods_en || '', hi: acf.foods_hi || '' },
-          // Automated Rule Data
-          lunarMonth: getVal(['lunar', 'month']) || getVal(['month']) || '',
-          paksha: getVal(['paksha']) || '',
-          tithi: getVal(['tithi']) || '',
-          northDate: getVal(['north', 'date']) || "Upcoming",
-          southDate: getVal(['south', 'date']) || "Upcoming",
+          lunarMonth: getVal(['lunar', 'month']) || getVal(['month']),
+          paksha: getVal(['paksha']),
+          tithi: getVal(['tithi']),
+          northDate: acf.north_indian_date || acf.festival_date_north || '',
+          southDate: acf.south_indian_date || acf.festival_date_south || '',
           image: acf.magazine_image_link || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || FALLBACK_IMAGE
         };
       });
@@ -72,7 +102,7 @@ const App = () => {
       setFestivals(formatted);
       setIsLoading(false);
     } catch (error) {
-      console.error("Scale Error:", error);
+      console.error("Data Load Error:", error);
       setIsLoading(false);
     }
   };
@@ -85,18 +115,12 @@ const App = () => {
     });
   }, [festivals, searchQuery, activeTab, lang]);
 
-  const formatDate = (f) => {
-    // Priority 1: If a manual date is set in WordPress, show it
-    if (f.northDate && f.northDate !== "Upcoming") {
-       // Just clean up simple formatting
-       return f.northDate;
-    }
-    // Priority 2: If Lunar Rules are set, show the Rule (e.g. Ashadha Krishna Ekadashi)
-    if (f.lunarMonth || f.tithi) {
-      return `${f.lunarMonth} ${f.paksha} ${f.tithi}`.trim();
-    }
-    // Priority 3: Default fallback
-    return lang === 'en' ? 'Tithi TBD' : 'तिथि निर्धारित नहीं';
+  const getDisplayDate = (f) => {
+    const gregNorth = formatDateString(f.northDate);
+    if (gregNorth) return gregNorth;
+    const ruleParts = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '');
+    if (ruleParts.length > 0) return ruleParts.join(' ');
+    return lang === 'en' ? 'Upcoming' : 'आगामी';
   };
 
   const Navbar = () => (
@@ -107,17 +131,15 @@ const App = () => {
           <span className="font-serif text-xl font-bold text-[#2D2422] hidden sm:block">Path of <span className="text-[#DF4832]">Karma</span></span>
         </div>
       </div>
-
       <div className="hidden md:flex items-center space-x-2 bg-[#FFFCF8] px-4 py-2 rounded-full border border-[#F5A623]/20 text-[10px] font-bold text-[#2D2422]/60 uppercase tracking-widest">
         <Moon className="w-3 h-3 mr-2 text-[#F5A623]" />
         Today: {todayTithi}
       </div>
-
       <div className="flex items-center space-x-4">
         <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-4 py-2 rounded-full border border-[#F5A623]/20 text-xs font-bold text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
           {lang === 'en' ? 'हिन्दी' : 'English'}
         </button>
-        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-colors transition-all"><Calendar className="w-5 h-5" /></button>
+        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8]"><Calendar className="w-5 h-5" /></button>
       </div>
     </nav>
   );
@@ -140,7 +162,7 @@ const App = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input 
             type="text" 
-            placeholder={lang === 'en' ? "Search 700+ Festivals..." : "700+ त्योहार खोजें..."}
+            placeholder={lang === 'en' ? "Search Festivals..." : "त्योहार खोजें..."}
             className="w-full md:w-80 pl-11 pr-6 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#F5A623]/20 transition-all text-sm shadow-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -155,29 +177,24 @@ const App = () => {
           <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-10">
             {filteredFestivals.map(f => (
               <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className="bg-white rounded-[3rem] p-5 shadow-sm border border-gray-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col">
-                <div className="relative h-60 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
+                <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
                   <img src={f.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={f.name[lang]} />
                   <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
                 </div>
                 <div className="px-3 flex-grow flex flex-col">
-                  <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{formatDate(f)}</div>
-                  <h3 className="font-serif text-2xl text-[#2D2422] mb-3 group-hover:text-[#DF4832] transition-colors">{f.name[lang]}</h3>
+                  <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{getDisplayDate(f)}</div>
+                  <h3 className="font-serif text-2xl text-[#2D2422] mb-3 group-hover:text-[#DF4832] transition-colors leading-tight">{f.name[lang]}</h3>
                   <div className="text-[#2D2422]/60 text-sm line-clamp-2 mb-8 font-light" dangerouslySetInnerHTML={{__html: f.significance[lang]}} />
-                  <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">Read More</button>
+                  <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">Explore Details</button>
                 </div>
               </div>
             ))}
           </div>
           <aside className="lg:col-span-3 space-y-10">
-             <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 p-6 overflow-hidden">
+             <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 p-6 overflow-hidden shadow-sm">
                <img src="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600" className="h-40 w-full object-cover rounded-2xl mb-4" alt="Course" />
                <h4 className="font-serif text-lg text-[#2D2422] mb-2">Ramayana Course</h4>
-               <p className="text-xs text-[#2D2422]/60 mb-4">Animated wisdom for kids.</p>
                <button className="w-full py-3 rounded-xl bg-[#FFFCF8] border border-[#F5A623]/30 text-[#DF4832] font-bold text-[10px] uppercase tracking-widest">Join Now</button>
-            </div>
-            <div className="bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-4">
-              <Sparkles className="w-6 h-6 text-[#F5A623] opacity-40" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">AdSense Space</span>
             </div>
           </aside>
         </div>
@@ -188,6 +205,10 @@ const App = () => {
   const FestivalDetailView = () => {
     if (!selectedFestival) return null;
     const f = selectedFestival;
+    const gregNorth = formatDateString(f.northDate);
+    const gregSouth = formatDateString(f.southDate);
+    const ruleStr = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '').join(' ');
+
     return (
       <div className="min-h-screen bg-[#FFFCF8] pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-10">
@@ -209,13 +230,13 @@ const App = () => {
               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Calendar Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{f.northDate !== "Upcoming" ? f.northDate : "TBD"}</p>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Gregorian Date</h3>
+                  <p className="font-serif text-3xl text-[#2D2422]">{gregNorth || "TBD"}</p>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Lunar Tithi Rule</h3>
-                  <p className="font-serif text-2xl text-[#2D2422]">{f.lunarMonth ? `${f.lunarMonth} ${f.tithi}` : "N/A"}</p>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Lunar Rule</h3>
+                  <p className="font-serif text-2xl text-[#2D2422]">{ruleStr || "Calculating..."}</p>
                 </div>
               </section>
 
@@ -243,7 +264,7 @@ const App = () => {
 
             <aside className="lg:col-span-4 space-y-12">
               <div className="sticky top-28 space-y-12">
-                <div className="bg-white rounded-[3rem] p-10 border border-[#F5A623]/20 shadow-sm text-center text-gray-400">AdSense Space</div>
+                <div className="bg-white rounded-[3rem] p-10 border border-[#F5A623]/20 shadow-sm text-center text-gray-300 min-h-[500px] flex items-center justify-center">AdSense Space</div>
               </div>
             </aside>
           </div>
@@ -256,7 +277,7 @@ const App = () => {
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
       <div className="max-w-7xl mx-auto px-4 text-center">
         <div className="flex flex-col items-center space-y-12">
-          <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white" alt="Footer Logo" />
+          <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white shadow-2xl" alt="Footer Logo" />
           <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
              pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
           </a>
