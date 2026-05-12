@@ -6,10 +6,6 @@ import {
   Clock, MapPin, Search, Filter, Hash
 } from 'lucide-react';
 
-/**
- * DYNAMIC TITHI CALCULATOR
- * Demonstrates internal engine capacity.
- */
 const getTodayTithi = () => {
   const tithis = [
     "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
@@ -63,7 +59,7 @@ const App = () => {
           significance: { en: acf.significance_en || '', hi: acf.significance_hi || '' },
           rituals: { en: acf.rituals_en || '', hi: acf.rituals_hi || '' },
           foods: { en: acf.foods_en || '', hi: acf.foods_hi || '' },
-          // Automated Rule Data
+          // Automated Rule Data - This is the "Brain" for 700+ entries
           lunarMonth: acf.lunar_month || '',
           paksha: acf.lunar_paksha || '',
           tithi: acf.lunar_tithi || '',
@@ -89,14 +85,17 @@ const App = () => {
     });
   }, [festivals, searchQuery, activeTab, lang]);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === "Upcoming") return lang === 'en' ? 'Upcoming' : 'आगामी';
-    try {
-      let d = dateStr.includes('/') ? 
-        new Date(dateStr.split('/')[2], dateStr.split('/')[1]-1, dateStr.split('/')[0]) : 
-        new Date(dateStr);
-      return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(lang === 'en' ? 'en-US' : 'hi-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    } catch { return dateStr; }
+  const formatDate = (f) => {
+    // Priority 1: If a manual date is set in WordPress, show it
+    if (f.northDate && f.northDate !== "Upcoming") {
+       return f.northDate;
+    }
+    // Priority 2: If Lunar Rules are set, show the Rule (e.g. Chaitra Shukla Ekadashi)
+    if (f.lunarMonth && f.lunarTithi) {
+      return `${f.lunarMonth} ${f.paksha} ${f.tithi}`;
+    }
+    // Priority 3: Default fallback
+    return lang === 'en' ? 'Tithi TBD' : 'तिथि निर्धारित नहीं';
   };
 
   const Navbar = () => (
@@ -160,7 +159,7 @@ const App = () => {
                   <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
                 </div>
                 <div className="px-3 flex-grow flex flex-col">
-                  <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{formatDate(f.northDate)}</div>
+                  <div className="flex items-center text-[10px] text-[#DF4832] font-bold uppercase tracking-widest mb-3 opacity-70"><Clock className="w-3.5 h-3.5 mr-2" />{formatDate(f)}</div>
                   <h3 className="font-serif text-2xl text-[#2D2422] mb-3 group-hover:text-[#DF4832] transition-colors">{f.name[lang]}</h3>
                   <div className="text-[#2D2422]/60 text-sm line-clamp-2 mb-8 font-light" dangerouslySetInnerHTML={{__html: f.significance[lang]}} />
                   <button className="mt-auto w-full py-4 rounded-[1.5rem] bg-[#FFFCF8] text-[#DF4832] font-bold text-[10px] uppercase tracking-widest hover:bg-[#F5A623] hover:text-white transition-all shadow-sm">Read More</button>
@@ -169,15 +168,15 @@ const App = () => {
             ))}
           </div>
           <aside className="lg:col-span-3 space-y-10">
-            <div className="bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-4">
-              <Sparkles className="w-6 h-6 text-[#F5A623] opacity-40" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">AdSense Space</span>
-            </div>
-            <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 p-6 overflow-hidden">
+             <div className="bg-white rounded-[2rem] border border-[#F5A623]/20 p-6 overflow-hidden">
                <img src="https://images.unsplash.com/photo-1555580556-9a5957008779?auto=format&fit=crop&q=80&w=600" className="h-40 w-full object-cover rounded-2xl mb-4" alt="Course" />
                <h4 className="font-serif text-lg text-[#2D2422] mb-2">Ramayana Course</h4>
                <p className="text-xs text-[#2D2422]/60 mb-4">Animated wisdom for kids.</p>
                <button className="w-full py-3 rounded-xl bg-[#FFFCF8] border border-[#F5A623]/30 text-[#DF4832] font-bold text-[10px] uppercase tracking-widest">Join Now</button>
+            </div>
+            <div className="bg-gradient-to-br from-white to-[#FFFCF8] border border-gray-100 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center space-y-4">
+              <Sparkles className="w-6 h-6 text-[#F5A623] opacity-40" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">AdSense Space</span>
             </div>
           </aside>
         </div>
@@ -209,13 +208,13 @@ const App = () => {
               <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">North Indian Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{formatDate(f.northDate)}</p>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Calendar Date</h3>
+                  <p className="font-serif text-3xl text-[#2D2422]">{f.northDate !== "Upcoming" ? f.northDate : "TBD"}</p>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">South Indian Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{formatDate(f.southDate)}</p>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Lunar Tithi Rule</h3>
+                  <p className="font-serif text-2xl text-[#2D2422]">{f.lunarMonth ? `${f.lunarMonth} ${f.tithi}` : "N/A"}</p>
                 </div>
               </section>
 
@@ -225,14 +224,6 @@ const App = () => {
                   {lang === 'en' ? 'The Story' : 'कहानी'}
                 </h2>
                 <div className="text-xl leading-[2] text-[#2D2422]/80 font-light prose-p:mb-10" dangerouslySetInnerHTML={{__html: f.story[lang]}}></div>
-              </section>
-
-              <section className="bg-gradient-to-br from-white to-[#FFFCF8] p-12 md:p-20 rounded-[4.5rem] border border-[#F5A623]/10">
-                <h2 className="flex items-center font-serif text-4xl text-[#2D2422] mb-12 tracking-tight">
-                  <Sparkles className="w-10 h-10 mr-6 text-[#F5A623] opacity-70" />
-                  {lang === 'en' ? 'Significance' : 'महत्व'}
-                </h2>
-                <div className="text-xl leading-[2] text-[#2D2422]/70 font-light" dangerouslySetInnerHTML={{__html: f.significance[lang]}}></div>
               </section>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -251,10 +242,7 @@ const App = () => {
 
             <aside className="lg:col-span-4 space-y-12">
               <div className="sticky top-28 space-y-12">
-                <div className="bg-white rounded-[3rem] p-10 border border-[#F5A623]/20 shadow-sm text-center">
-                  <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300 block mb-6">Sponsored Space</span>
-                  <div className="h-[500px] bg-gray-50 rounded-3xl flex items-center justify-center border border-dashed border-gray-200 text-gray-400">AdSense Space</div>
-                </div>
+                <div className="bg-white rounded-[3rem] p-10 border border-[#F5A623]/20 shadow-sm text-center text-gray-400">AdSense Space</div>
               </div>
             </aside>
           </div>
