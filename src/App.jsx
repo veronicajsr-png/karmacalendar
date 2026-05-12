@@ -44,6 +44,7 @@ const App = () => {
       const formatted = wpData.map(post => {
         const acf = post.acf || {};
         
+        // HELPER: Scans ACF for any key containing these words
         const getVal = (words) => {
           if (acf[words.join('_')]) return acf[words.join('_')];
           const key = Object.keys(acf).find(k => words.every(w => k.toLowerCase().includes(w)));
@@ -52,17 +53,16 @@ const App = () => {
 
         return {
           id: post.id,
-          // Reading the new 'religion' field for the filter tabs
-          category: acf.religion || "Hindu",
+          category: getVal(['religion']) || "Hindu",
           name: { en: post.title.rendered, hi: acf.title_hi || post.title.rendered },
           story: { en: acf.story_en || '', hi: acf.story_hi || '' },
           significance: { en: acf.significance_en || '', hi: acf.significance_hi || '' },
           rituals: { en: acf.rituals_en || '', hi: acf.rituals_hi || '' },
           foods: { en: acf.foods_en || '', hi: acf.foods_hi || '' },
-          // Automated Rule Data - This is the "Brain" for 700+ entries
-          lunarMonth: acf.lunar_month || '',
-          paksha: acf.lunar_paksha || '',
-          tithi: acf.lunar_tithi || '',
+          // Automated Rule Data
+          lunarMonth: getVal(['lunar', 'month']) || getVal(['month']) || '',
+          paksha: getVal(['paksha']) || '',
+          tithi: getVal(['tithi']) || '',
           northDate: getVal(['north', 'date']) || "Upcoming",
           southDate: getVal(['south', 'date']) || "Upcoming",
           image: acf.magazine_image_link || post._embedded?.['wp:featuredmedia']?.[0]?.source_url || FALLBACK_IMAGE
@@ -88,11 +88,12 @@ const App = () => {
   const formatDate = (f) => {
     // Priority 1: If a manual date is set in WordPress, show it
     if (f.northDate && f.northDate !== "Upcoming") {
+       // Just clean up simple formatting
        return f.northDate;
     }
-    // Priority 2: If Lunar Rules are set, show the Rule (e.g. Chaitra Shukla Ekadashi)
-    if (f.lunarMonth && f.lunarTithi) {
-      return `${f.lunarMonth} ${f.paksha} ${f.tithi}`;
+    // Priority 2: If Lunar Rules are set, show the Rule (e.g. Ashadha Krishna Ekadashi)
+    if (f.lunarMonth || f.tithi) {
+      return `${f.lunarMonth} ${f.paksha} ${f.tithi}`.trim();
     }
     // Priority 3: Default fallback
     return lang === 'en' ? 'Tithi TBD' : 'तिथि निर्धारित नहीं';
@@ -116,7 +117,7 @@ const App = () => {
         <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-4 py-2 rounded-full border border-[#F5A623]/20 text-xs font-bold text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
           {lang === 'en' ? 'हिन्दी' : 'English'}
         </button>
-        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8]"><Calendar className="w-5 h-5" /></button>
+        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-colors transition-all"><Calendar className="w-5 h-5" /></button>
       </div>
     </nav>
   );
@@ -154,7 +155,7 @@ const App = () => {
           <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-10">
             {filteredFestivals.map(f => (
               <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className="bg-white rounded-[3rem] p-5 shadow-sm border border-gray-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col">
-                <div className="relative h-60 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50">
+                <div className="relative h-60 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
                   <img src={f.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={f.name[lang]} />
                   <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
                 </div>
