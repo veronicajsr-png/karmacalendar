@@ -16,28 +16,14 @@ const getTodayTithi = () => {
   return tithis[tithiIndex] || "Shukla Paksha";
 };
 
-// UPGRADED: Safely convert ANY date string (including raw YYYYMMDD) into a Date object
+// Helper to safely convert DD/MM/YYYY into a real JavaScript Date object
 const parseDateString = (dateStr) => {
   if (!dateStr || dateStr === "Upcoming") return null;
-  
-  const str = String(dateStr).trim();
-
-  // 1. Detect raw ACF database format: YYYYMMDD (8 digits)
-  if (/^\d{8}$/.test(str)) {
-    const year = parseInt(str.slice(0, 4), 10);
-    const month = parseInt(str.slice(4, 6), 10) - 1; // JS months are 0-11
-    const day = parseInt(str.slice(6, 8), 10);
-    return new Date(year, month, day);
-  }
-
-  // 2. Detect DD/MM/YYYY
-  const parts = str.split('/');
+  const parts = dateStr.split('/');
   if (parts.length === 3) {
     return new Date(parts[2], parts[1] - 1, parts[0]);
   }
-
-  // 3. Fallback for standard formats
-  const fallback = new Date(str);
+  const fallback = new Date(dateStr);
   return isNaN(fallback.getTime()) ? null : fallback;
 };
 
@@ -143,22 +129,14 @@ const App = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // UPGRADED: Smart Date Formatter with Beautiful Localization
+  // SMART DATE FORMATTER
   const formatDate = (f) => {
     const ruleParts = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '');
     const lunarString = ruleParts.length > 0 ? ruleParts.join(' ') : (lang === 'en' ? 'Upcoming' : 'आगामी');
 
     if (f.isPast) {
+      // If the date has passed, show the perpetual Lunar Rule and mark it for next year
       return `${lunarString} (2027)`; 
-    }
-
-    if (f.parsedDate) {
-      // Formats into e.g., "10 August 2026" (English) or "10 अगस्त 2026" (Hindi)
-      return f.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
     }
 
     if (f.northDate && f.northDate !== "Upcoming" && f.northDate !== "") {
@@ -276,14 +254,6 @@ const App = () => {
   const FestivalDetailView = () => {
     if (!selectedFestival) return null;
     const f = selectedFestival;
-    
-    // Formatting the specific internal card date
-    const detailDateDisplay = f.isPast 
-      ? "2027 Date TBD" 
-      : (f.parsedDate 
-          ? f.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) 
-          : "TBD");
-
     return (
       <div className="min-h-screen bg-[#FFFCF8] pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-10">
@@ -307,7 +277,7 @@ const App = () => {
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#F5A623]/20 shadow-sm flex flex-col items-center text-center">
                   <Sun className="w-8 h-8 text-[#F5A623] mb-6 opacity-30" />
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-[#2D2422]/30 mb-3">Gregorian Date</h3>
-                  <p className="font-serif text-3xl text-[#2D2422]">{detailDateDisplay}</p>
+                  <p className="font-serif text-3xl text-[#2D2422]">{f.isPast ? "2027 Date TBD" : (f.northDate !== "" ? f.northDate : "TBD")}</p>
                 </div>
                 <div className="bg-white p-12 rounded-[3.5rem] border border-[#DF4832]/20 shadow-sm flex flex-col items-center text-center">
                   <Moon className="w-8 h-8 text-[#DF4832] mb-6 opacity-30" />
