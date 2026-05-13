@@ -158,10 +158,10 @@ const App = () => {
   const Navbar = () => {
     return (
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#F5A623]/10 px-4 md:px-8 h-20 flex items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-4 cursor-pointer" onClick={() => setCurrentView('home')}>
-          <img src={LOGO_URL} className="w-10 h-10 rounded-full object-cover border border-gray-100" alt="Logo" />
-          <span className="font-serif text-xl font-bold text-[#2D2422] hidden sm:block">Path of <span className="text-[#DF4832]">Karma</span></span>
-        </div>
+        <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-4 cursor-pointer group">
+          <img src={LOGO_URL} className="w-10 h-10 rounded-full object-cover border border-gray-100 group-hover:scale-105 transition-transform" alt="Logo" />
+          <span className="font-serif text-xl font-bold text-[#2D2422] hidden sm:block group-hover:text-[#DF4832] transition-colors">Path of <span className="text-[#DF4832]">Karma</span></span>
+        </a>
         <div className="hidden md:flex items-center space-x-2 bg-[#FFFCF8] px-4 py-2 rounded-full border border-[#F5A623]/20 text-[10px] font-bold text-[#2D2422]/60 uppercase tracking-widest">
           <Moon className="w-3 h-3 mr-2 text-[#F5A623]" /> Today: {todayTithi}
         </div>
@@ -427,13 +427,21 @@ const App = () => {
       <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex flex-col items-center space-y-12">
-            <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white shadow-2xl" alt="Footer Logo" />
+            <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="hover:scale-105 transition-transform">
+              <img src={LOGO_URL} className="w-24 h-24 rounded-full border-4 border-[#F5A623]/20 bg-white shadow-2xl" alt="Footer Logo" />
+            </a>
             <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="text-white font-serif text-3xl hover:text-[#F5A623] transition-colors flex items-center">
                pathofkarma.com <ExternalLink className="w-6 h-6 ml-4 opacity-30" />
             </a>
             <div className="space-y-4">
               <p className="text-white/40 text-[11px] tracking-[0.5em] uppercase font-black">Wisdom for the Modern World</p>
-              <p className="text-white/20 text-xs font-light">© {new Date().getFullYear()} Path of Karma. All rights reserved.</p>
+              <p className="text-white/20 text-xs font-light">
+                © {new Date().getFullYear()}{' '}
+                <a href="https://pathofkarma.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 underline-offset-4">
+                  Path of Karma
+                </a>
+                . All rights reserved.
+              </p>
             </div>
           </div>
         </div>
