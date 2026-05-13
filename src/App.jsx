@@ -285,6 +285,40 @@ const App = () => {
         document.body.removeChild(link);
     };
 
+    // NEW: Native Share & Clipboard Fallback Logic
+    const handleShare = async () => {
+      const shareTitle = f.name[lang];
+      const shareText = lang === 'en' 
+        ? `Discover the beautiful story and rituals of ${f.name[lang]} on Path of Karma!` 
+        : `कर्म के पथ पर ${f.name[lang]} की सुंदर कहानी और अनुष्ठानों की खोज करें!`;
+      const shareUrl = 'https://karmacalendar.pathofkarma.com'; // Points back to your live app
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: shareTitle,
+            text: shareText,
+            url: shareUrl,
+          });
+        } catch (err) {
+          console.error("Error sharing:", err);
+        }
+      } else {
+        // Fallback for desktop: Copy to clipboard
+        const textArea = document.createElement("textarea");
+        textArea.value = `${shareText} ${shareUrl}`;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          triggerToast(lang === 'en' ? 'Link copied to clipboard!' : 'लिंक क्लिपबोर्ड पर कॉपी हो गया!');
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
+        document.body.removeChild(textArea);
+      }
+    };
+
     return (
       <div className="min-h-screen bg-[#FFFCF8] pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-10">
@@ -326,7 +360,12 @@ const App = () => {
                    )}
                 </div>
 
-                <button className="p-4 rounded-full bg-white border-2 border-gray-100 text-gray-500 hover:text-[#DF4832] hover:border-[#DF4832]/30 transition-all shadow-sm">
+                {/* UPDATED: Connected the Share Button */}
+                <button 
+                  onClick={handleShare}
+                  title={lang === 'en' ? 'Share Festival' : 'त्योहार साझा करें'}
+                  className="p-4 rounded-full bg-white border-2 border-gray-100 text-gray-500 hover:text-[#DF4832] hover:border-[#DF4832]/30 transition-all shadow-sm"
+                >
                   <Share2 className="w-5 h-5" />
                 </button>
               </div>
