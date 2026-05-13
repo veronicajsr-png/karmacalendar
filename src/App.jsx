@@ -4,7 +4,7 @@ import {
   BookOpen, Coffee, Sparkles, 
   ChevronRight, ChevronLeft, ArrowLeft, 
   ExternalLink, Clock, MapPin, Search,
-  Heart, Share2, Bell, User, Menu, Download // Restored missing icons!
+  Heart, Share2, Bell, User, Menu, Download
 } from 'lucide-react';
 
 const getTodayTithi = () => {
@@ -47,8 +47,17 @@ const App = () => {
   const [activeTab, setActiveCategory] = useState('All');
   const [todayTithi, setTodayTithi] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [toastMsg, setToastMsg] = useState(''); // Moved to root for maximum safety
+  const [toastMsg, setToastMsg] = useState('');
   const festivalsPerPage = 12;
+
+  // Authentication and Saved Festivals
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [savedFestivals, setSavedFestivals] = useState([]);
+  
+  // NEW: Real Login States
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1548013146-72479768bbaa?auto=format&fit=crop&q=80&w=1000";
   const LOGO_URL = "https://pathofkarma.com/wp-content/uploads/2026/05/Path-of-karma-Final-Logo-1.jpg";
@@ -56,6 +65,12 @@ const App = () => {
   useEffect(() => {
     setTodayTithi(getTodayTithi());
     fetchWordPressData();
+    
+    // NEW: Check if user is already logged in when the app loads
+    const token = localStorage.getItem('wp_token');
+    if (token) {
+      setIsLoggedIn(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -65,6 +80,71 @@ const App = () => {
   const triggerToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  // NEW: Real WordPress JWT Authentication Logic
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    
+    try {
+      const response = await fetch('https://pathofkarma.com/wp-json/jwt-auth/v1/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          username: username,
+          password: password
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token) {
+        // Success! Save the secure token to the browser
+        localStorage.setItem('wp_token', data.token);
+        localStorage.setItem('wp_user_name', data.user_display_name);
+        setIsLoggedIn(true);
+        triggerToast(lang === 'en' ? `Welcome back, ${data.user_display_name}!` : `वापसी पर स्वागत है, ${data.user_display_name}!`);
+        setUsername('');
+        setPassword('');
+      } else {
+        // WordPress rejected the login or JWT is missing config
+        triggerToast(data.message?.replace(/<[^>]+>/g, '') || (lang === 'en' ? 'Login failed. Check your credentials.' : 'लॉगिन विफल रहा।'));
+      }
+    } catch (error) {
+      console.error("Login Error:", error);
+      triggerToast(lang === 'en' ? 'Network error. Please try again.' : 'नेटवर्क त्रुटि। कृपया पुनः प्रयास करें।');
+    }
+    
+    setIsLoggingIn(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('wp_token');
+    localStorage.removeItem('wp_user_name');
+    setIsLoggedIn(false);
+    setSavedFestivals([]);
+    triggerToast(lang === 'en' ? 'Successfully logged out.' : 'सफलतापूर्वक लॉग आउट किया गया।');
+  };
+
+  const handleSaveFestival = (festival) => {
+    if (!isLoggedIn) {
+      triggerToast(lang === 'en' ? 'Please log in to save your favorite festivals!' : 'कृपया अपने पसंदीदा त्योहारों को सहेजने के लिए लॉग इन करें!');
+      setCurrentView('profile');
+      window.scrollTo(0, 0);
+      return;
+    }
+    
+    if (savedFestivals.some(saved => saved.id === festival.id)) {
+      triggerToast(lang === 'en' ? 'Festival already saved!' : 'त्योहार पहले से ही सहेजा गया है!');
+      return;
+    }
+
+    setSavedFestivals([...savedFestivals, festival]);
+    triggerToast(lang === 'en' ? 'Festival saved successfully!' : 'त्योहार सफलतापूर्वक सहेजा गया!');
   };
 
   const fetchWordPressData = async () => {
@@ -157,7 +237,12 @@ const App = () => {
         <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-4 py-2 rounded-full border border-[#F5A623]/20 text-xs font-bold text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
           {lang === 'en' ? 'हिन्दी' : 'English'}
         </button>
-        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-all"><Calendar className="w-5 h-5" /></button>
+        <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
+          <Calendar className="w-5 h-5" />
+        </button>
+        <button onClick={() => setCurrentView('profile')} className={`p-2.5 rounded-full transition-all ${currentView === 'profile' ? 'bg-[#FFFCF8] text-[#DF4832]' : 'text-[#2D2422] hover:bg-[#FFFCF8]'}`}>
+          <User className="w-5 h-5" />
+        </button>
       </div>
     </nav>
   );
@@ -277,14 +362,20 @@ const App = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2D2422] via-[#2D2422]/10 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 p-10 md:p-20">
                   <span className="inline-block bg-[#DF4832] text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8 shadow-2xl">{f.category}</span>
+                  {f.isPast && <span className="inline-block ml-3 bg-[#2D2422]/80 text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8 shadow-2xl">Passed</span>}
                   <h1 className="font-serif text-6xl md:text-8xl text-white font-bold tracking-tighter leading-[0.85]">{f.name[lang]}</h1>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-4 border-b border-[#F5A623]/20 pb-8">
-                <button className="flex-1 sm:flex-none flex items-center justify-center bg-[#DF4832] text-white px-8 py-4 rounded-full hover:bg-[#F5A623] hover:shadow-lg transition-all font-semibold shadow-md">
-                  <Heart className="w-5 h-5 mr-2" />
-                  {lang === 'en' ? 'Save Festival' : 'त्योहार सहेजें'}
+                <button 
+                  onClick={() => handleSaveFestival(f)}
+                  className="flex-1 sm:flex-none flex items-center justify-center bg-[#DF4832] text-white px-8 py-4 rounded-full hover:bg-[#F5A623] hover:shadow-lg transition-all font-semibold shadow-md"
+                >
+                  <Heart className={`w-5 h-5 mr-2 ${savedFestivals.some(saved => saved.id === f.id) ? 'fill-current' : ''}`} />
+                  {lang === 'en' 
+                    ? (savedFestivals.some(saved => saved.id === f.id) ? 'Saved' : 'Save Festival') 
+                    : (savedFestivals.some(saved => saved.id === f.id) ? 'सहेजा गया' : 'त्योहार सहेजें')}
                 </button>
                 
                 <div className="relative group flex-1 sm:flex-none">
@@ -365,6 +456,125 @@ const App = () => {
     );
   };
 
+  const ProfileView = () => (
+    <div className="max-w-3xl mx-auto px-4 py-12 relative z-10">
+      <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-[0_20px_50px_rgb(0,0,0,0.05)] border border-[#F5A623]/10 text-center relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#DF4832]/5 to-[#F5A623]/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+        
+        <div className="w-24 h-24 bg-gradient-to-br from-[#DF4832] to-[#F5A623] rounded-full mx-auto mb-6 flex items-center justify-center shadow-xl relative z-10">
+          <User className="w-10 h-10 text-white" />
+        </div>
+
+        {!isLoggedIn ? (
+          <>
+            <h2 className="font-serif text-3xl text-[#2D2422] mb-3 relative z-10">
+              {lang === 'en' ? 'Join Path of Karma' : 'कर्म के पथ से जुड़ें'}
+            </h2>
+            <p className="text-[#2D2422]/60 mb-8 font-light max-w-md mx-auto relative z-10">
+              {lang === 'en' 
+                ? 'Log in with your Path of Karma account to save festivals and sync your preferences.'
+                : 'त्योहारों को सहेजने और अपनी प्राथमिकताओं को सिंक करने के लिए अपने खाते से लॉग इन करें।'}
+            </p>
+            
+            {/* UPDATED: Real Login Form connected to WordPress */}
+            <form className="space-y-4 max-w-sm mx-auto relative z-10" onSubmit={handleLogin}>
+              <input 
+                type="text"
+                required 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={lang === 'en' ? 'Username or Email' : 'उपयोगकर्ता नाम या ईमेल'}
+                className="w-full px-5 py-4 bg-[#FFFCF8] border border-gray-200 rounded-2xl focus:outline-none focus:border-[#F5A623] focus:ring-1 focus:ring-[#F5A623] transition-all"
+              />
+              <input 
+                type="password"
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={lang === 'en' ? 'Password' : 'पासवर्ड'}
+                className="w-full px-5 py-4 bg-[#FFFCF8] border border-gray-200 rounded-2xl focus:outline-none focus:border-[#F5A623] focus:ring-1 focus:ring-[#F5A623] transition-all"
+              />
+              <button 
+                type="submit" 
+                disabled={isLoggingIn}
+                className="w-full bg-[#DF4832] text-white py-4 rounded-2xl font-bold hover:bg-[#F5A623] hover:shadow-lg transition-all shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isLoggingIn ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  lang === 'en' ? 'Log In' : 'लॉग इन'
+                )}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <h2 className="font-serif text-3xl text-[#2D2422] mb-3 relative z-10">
+              {lang === 'en' ? 'Welcome, ' : 'स्वागत है, '}
+              {localStorage.getItem('wp_user_name') || 'Seeker'}
+            </h2>
+            <p className="text-[#2D2422]/60 mb-8 font-light max-w-md mx-auto relative z-10">
+              {lang === 'en' ? 'You are successfully logged in to WordPress.' : 'आपने वर्डप्रेस में सफलतापूर्वक लॉग इन किया है।'}
+            </p>
+            <button 
+              onClick={handleLogout} 
+              className="px-8 py-3 rounded-full border border-gray-200 text-[#2D2422] font-semibold hover:border-[#DF4832] hover:text-[#DF4832] transition-colors shadow-sm bg-white relative z-10"
+            >
+              {lang === 'en' ? 'Log Out' : 'लॉग आउट'}
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="mt-12">
+        <h3 className="font-serif text-2xl text-[#2D2422] mb-6 px-4">
+          {lang === 'en' ? 'Saved Festivals' : 'सहेजे गए त्योहार'}
+        </h3>
+        
+        {!isLoggedIn ? (
+          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-10 text-center">
+            <p className="text-[#2D2422]/60 font-light">{lang === 'en' ? 'Please log in to see your saved festivals.' : 'कृपया अपने सहेजे गए त्योहारों को देखने के लिए लॉग इन करें।'}</p>
+          </div>
+        ) : savedFestivals.length > 0 ? (
+          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+            <ul className="divide-y divide-gray-50">
+              {savedFestivals.map(sf => (
+                <li key={sf.id} className="p-6 hover:bg-[#FFFCF8] transition-colors flex flex-col sm:flex-row sm:items-center justify-between group cursor-pointer" onClick={() => { setSelectedFestival(sf); setCurrentView('festival'); window.scrollTo(0,0); }}>
+                  <div className="flex items-center mb-4 sm:mb-0">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden mr-4 flex-shrink-0">
+                      <img src={sf.image} alt={sf.name[lang]} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-[#2D2422] group-hover:text-[#DF4832] transition-colors">{sf.name[lang]}</h4>
+                      <p className="text-sm text-[#2D2422]/60">{sf.parsedDate ? sf.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : (lang === 'en' ? 'Upcoming' : 'आगामी')}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3 ml-20 sm:ml-0">
+                     <button 
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         const updated = savedFestivals.filter(item => item.id !== sf.id);
+                         setSavedFestivals(updated);
+                         triggerToast(lang === 'en' ? 'Removed from saved list.' : 'सहेजी गई सूची से हटा दिया गया।');
+                       }}
+                       className="flex items-center text-xs bg-white border border-gray-200 text-[#DF4832] px-4 py-2 rounded-xl hover:bg-[#DF4832] hover:text-white transition-colors font-bold shadow-sm"
+                     >
+                       {lang === 'en' ? 'Remove' : 'हटाएं'}
+                     </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-10 text-center">
+            <p className="text-[#2D2422]/60 font-light">{lang === 'en' ? 'You haven\'t saved any festivals yet.' : 'आपने अभी तक कोई त्योहार नहीं सहेजा है।'}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const Footer = () => (
     <footer className="bg-[#2D2422] py-24 mt-auto border-t border-[#F5A623]/20">
       <div className="max-w-7xl mx-auto px-4 text-center">
@@ -388,6 +598,7 @@ const App = () => {
       <main className="flex-grow">
         {currentView === 'home' && <HomeView />}
         {currentView === 'festival' && <FestivalDetailView />}
+        {currentView === 'profile' && <ProfileView />}
       </main>
       <Footer />
       
