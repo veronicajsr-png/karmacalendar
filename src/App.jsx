@@ -3,7 +3,8 @@ import {
   Calendar, Globe, Sun, Moon, 
   BookOpen, Coffee, Sparkles, 
   ChevronRight, ChevronLeft, ArrowLeft, 
-  ExternalLink, Clock, MapPin, Search
+  ExternalLink, Clock, MapPin, Search,
+  Heart, Share2, Bell, User, Menu, Download // Restored missing icons!
 } from 'lucide-react';
 
 const getTodayTithi = () => {
@@ -16,15 +17,10 @@ const getTodayTithi = () => {
   return tithis[tithiIndex] || "Shukla Paksha";
 };
 
-/**
- * BULLETPROOF DATE PARSER
- * Converts YYYYMMDD, DD/MM/YYYY, or ISO into a real Date object
- */
 const parseDateString = (dateStr) => {
   if (!dateStr || dateStr === "Upcoming") return null;
   const str = String(dateStr).trim();
 
-  // Handle YYYYMMDD (Raw WordPress format)
   if (/^\d{8}$/.test(str)) {
     const year = parseInt(str.slice(0, 4), 10);
     const month = parseInt(str.slice(4, 6), 10) - 1;
@@ -32,7 +28,6 @@ const parseDateString = (dateStr) => {
     return new Date(year, month, day);
   }
 
-  // Handle DD/MM/YYYY
   const parts = str.split('/');
   if (parts.length === 3) {
     return new Date(parts[2], parts[1] - 1, parts[0]);
@@ -52,6 +47,7 @@ const App = () => {
   const [activeTab, setActiveCategory] = useState('All');
   const [todayTithi, setTodayTithi] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [toastMsg, setToastMsg] = useState(''); // Moved to root for maximum safety
   const festivalsPerPage = 12;
 
   const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1548013146-72479768bbaa?auto=format&fit=crop&q=80&w=1000";
@@ -66,6 +62,11 @@ const App = () => {
     setCurrentPage(1);
   }, [searchQuery, activeTab]);
 
+  const triggerToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
   const fetchWordPressData = async () => {
     try {
       const response = await fetch('https://pathofkarma.com/wp-json/wp/v2/festival?_embed&per_page=100');
@@ -75,8 +76,6 @@ const App = () => {
 
       const formatted = wpData.map(post => {
         const acf = post.acf || {};
-        
-        // Helper to extract nested ACF fields (Handles both Strings and Objects)
         const getVal = (words) => {
           const key = Object.keys(acf).find(k => words.every(w => k.toLowerCase().includes(w)));
           const raw = key ? acf[key] : null;
@@ -93,7 +92,6 @@ const App = () => {
           id: post.id,
           category: getVal(['religion']) || "Hindu",
           name: { en: post.title.rendered, hi: acf.title_hi || post.title.rendered },
-          // FULL MAPPING RESTORED BELOW
           story: { en: acf.story_en || '', hi: acf.story_hi || '' },
           significance: { en: acf.significance_en || '', hi: acf.significance_hi || '' },
           rituals: { en: acf.rituals_en || '', hi: acf.rituals_hi || '' },
@@ -224,17 +222,11 @@ const App = () => {
   );
 
   const FestivalDetailView = () => {
-    const [toastMsg, setToastMsg] = useState('');
-
     if (!selectedFestival) return null;
     const f = selectedFestival;
+    
     const detailDate = f.isPast ? "2027 Date TBD" : (f.parsedDate ? f.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : "TBD");
     const ruleStr = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '').join(' ');
-
-    const triggerToast = (msg) => {
-      setToastMsg(msg);
-      setTimeout(() => setToastMsg(''), 3000);
-    };
 
     const formatYMD = (date) => {
       const y = date.getFullYear();
@@ -295,7 +287,6 @@ const App = () => {
                   {lang === 'en' ? 'Save Festival' : 'त्योहार सहेजें'}
                 </button>
                 
-                {/* Custom Calendar Dropdown */}
                 <div className="relative group flex-1 sm:flex-none">
                    <button 
                      onClick={() => { if (!f.parsedDate) triggerToast(lang === 'en' ? 'Exact Gregorian date not set yet.' : 'सटीक ग्रेगोरियन तिथि अभी सेट नहीं हुई है।'); }}
@@ -369,13 +360,6 @@ const App = () => {
               </div>
             </aside>
           </div>
-          
-          {/* Subtle Popup Toast for Missing Dates */}
-          {toastMsg && (
-            <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-[#2D2422] text-white px-6 py-3 rounded-full shadow-2xl z-50 transition-all duration-300">
-              {toastMsg}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -406,6 +390,13 @@ const App = () => {
         {currentView === 'festival' && <FestivalDetailView />}
       </main>
       <Footer />
+      
+      {toastMsg && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-[#2D2422] text-white px-6 py-3 rounded-full shadow-2xl z-50 transition-all duration-300">
+          {toastMsg}
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         :root { --font-serif: 'Playfair Display', serif; --font-sans: 'Plus Jakarta Sans', sans-serif; }
