@@ -224,12 +224,12 @@ const App = () => {
   );
 
   const FestivalDetailView = () => {
+    const [toastMsg, setToastMsg] = useState('');
+
     if (!selectedFestival) return null;
     const f = selectedFestival;
     const detailDate = f.isPast ? "2027 Date TBD" : (f.parsedDate ? f.parsedDate.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : "TBD");
     const ruleStr = [f.lunarMonth, f.paksha, f.tithi].filter(p => p && p !== '').join(' ');
-
-    const [toastMsg, setToastMsg] = useState('');
 
     const triggerToast = (msg) => {
       setToastMsg(msg);
