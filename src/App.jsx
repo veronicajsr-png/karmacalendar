@@ -48,6 +48,12 @@ const parseDateString = (dateStr) => {
   return isNaN(fallback.getTime()) ? null : fallback;
 };
 
+// NEW: Helper to create clean, SEO-friendly URLs (e.g., "Maha Shivaratri" -> "maha-shivaratri")
+const createSlug = (text) => {
+  if (!text) return '';
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+};
+
 const App = () => {
   const [lang, setLang] = useState('en');
   const [currentView, setCurrentView] = useState('home');
@@ -69,6 +75,39 @@ const App = () => {
     fetchWordPressData();
   }, []);
 
+  // NEW: Dynamic SEO Browser Titles
+  useEffect(() => {
+    if (currentView === 'festival' && selectedFestival) {
+      document.title = `${selectedFestival.name[lang]} - Path of Karma Calendar`;
+    } else {
+      document.title = 'Path of Karma - Dharma Calendar';
+    }
+  }, [currentView, selectedFestival, lang]);
+
+  // NEW: Handle Browser Back/Forward Buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const festSlug = urlParams.get('fest');
+      
+      if (festSlug && festivals.length > 0) {
+        const foundFest = festivals.find(f => createSlug(f.name.en) === festSlug);
+        if (foundFest) {
+          setSelectedFestival(foundFest);
+          setCurrentView('festival');
+        } else {
+          setCurrentView('home');
+        }
+      } else {
+        setCurrentView('home');
+        setSelectedFestival(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [festivals]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, activeTab]);
@@ -76,6 +115,22 @@ const App = () => {
   const triggerToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 5000); 
+  };
+
+  // NEW: Dynamic Navigation Handlers
+  const handleHomeClick = () => {
+    setCurrentView('home');
+    setSelectedFestival(null);
+    window.scrollTo(0, 0);
+    window.history.pushState({ view: 'home' }, '', window.location.pathname);
+  };
+
+  const handleFestivalClick = (f) => {
+    setSelectedFestival(f);
+    setCurrentView('festival');
+    window.scrollTo(0, 0);
+    const slug = createSlug(f.name.en);
+    window.history.pushState({ view: 'festival', slug }, '', `?fest=${slug}`);
   };
 
   const fetchWordPressData = async () => {
@@ -126,6 +181,18 @@ const App = () => {
 
       setFestivals(formatted);
       setIsLoading(false);
+
+      // NEW: Check if user arrived via a shared link after data loads
+      const urlParams = new URLSearchParams(window.location.search);
+      const festSlug = urlParams.get('fest');
+      if (festSlug) {
+        const foundFest = formatted.find(f => createSlug(f.name.en) === festSlug);
+        if (foundFest) {
+          setSelectedFestival(foundFest);
+          setCurrentView('festival');
+        }
+      }
+
     } catch (error) {
       console.error("Data Load Error:", error);
       setIsLoading(false);
@@ -169,7 +236,7 @@ const App = () => {
           <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-4 py-2 rounded-full border border-[#F5A623]/20 text-xs font-bold text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
             {lang === 'en' ? 'हिन्दी' : 'English'}
           </button>
-          <button onClick={() => setCurrentView('home')} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
+          <button onClick={handleHomeClick} className="p-2.5 rounded-full text-[#2D2422] hover:bg-[#FFFCF8] transition-all">
             <Calendar className="w-5 h-5" />
           </button>
         </div>
@@ -199,7 +266,7 @@ const App = () => {
             <div className="lg:col-span-9 flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
                 {currentFestivals.map(f => (
-                  <div key={f.id} onClick={() => { setSelectedFestival(f); setCurrentView('festival'); window.scrollTo(0,0); }} className={`bg-white rounded-[3rem] p-5 shadow-sm border ${f.isPast ? 'border-gray-100 opacity-80' : 'border-gray-50'} hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col`}>
+                  <div key={f.id} onClick={() => handleFestivalClick(f)} className={`bg-white rounded-[3rem] p-5 shadow-sm border ${f.isPast ? 'border-gray-100 opacity-80' : 'border-gray-50'} hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col`}>
                     <div className="relative h-64 rounded-[2.5rem] overflow-hidden mb-6 bg-gray-50 shadow-inner">
                       <img src={f.image} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ${f.isPast ? 'grayscale-[30%]' : ''}`} alt={f.name[lang]} />
                       <div className="absolute top-5 left-5 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-bold text-[#DF4832] uppercase tracking-widest shadow-sm">{f.category}</div>
@@ -285,13 +352,16 @@ const App = () => {
         document.body.removeChild(link);
     };
 
-    // NEW: Native Share & Clipboard Fallback Logic
+    // UPDATED: Share logic now automatically uses your real domain!
     const handleShare = async () => {
       const shareTitle = f.name[lang];
       const shareText = lang === 'en' 
         ? `Discover the beautiful story and rituals of ${f.name[lang]} on Path of Karma!` 
         : `कर्म के पथ पर ${f.name[lang]} की सुंदर कहानी और अनुष्ठानों की खोज करें!`;
-      const shareUrl = 'https://karmacalendar.pathofkarma.com'; // Points back to your live app
+        
+      const festSlug = createSlug(f.name.en);
+      // Automatically grabs https://karmacalendar.pathofkarma.com
+      const shareUrl = `${window.location.origin}?fest=${festSlug}`;
 
       if (navigator.share) {
         try {
@@ -304,14 +374,13 @@ const App = () => {
           console.error("Error sharing:", err);
         }
       } else {
-        // Fallback for desktop: Copy to clipboard
         const textArea = document.createElement("textarea");
         textArea.value = `${shareText} ${shareUrl}`;
         document.body.appendChild(textArea);
         textArea.select();
         try {
           document.execCommand('copy');
-          triggerToast(lang === 'en' ? 'Link copied to clipboard!' : 'लिंक क्लिपबोर्ड पर कॉपी हो गया!');
+          triggerToast(lang === 'en' ? 'Direct link copied to clipboard!' : 'लिंक क्लिपबोर्ड पर कॉपी हो गया!');
         } catch (err) {
           console.error('Copy failed', err);
         }
@@ -322,7 +391,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#FFFCF8] pb-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-10">
-          <button onClick={() => setCurrentView('home')} className="flex items-center text-[#2D2422]/40 hover:text-[#DF4832] mb-12 bg-white px-8 py-3.5 rounded-full shadow-sm font-bold text-[10px] uppercase tracking-widest transition-all">
+          <button onClick={handleHomeClick} className="flex items-center text-[#2D2422]/40 hover:text-[#DF4832] mb-12 bg-white px-8 py-3.5 rounded-full shadow-sm font-bold text-[10px] uppercase tracking-widest transition-all">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </button>
           
@@ -360,7 +429,6 @@ const App = () => {
                    )}
                 </div>
 
-                {/* UPDATED: Connected the Share Button */}
                 <button 
                   onClick={handleShare}
                   title={lang === 'en' ? 'Share Festival' : 'त्योहार साझा करें'}
