@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://karmacalendar.pathofkarma.com/sitemap.xml
